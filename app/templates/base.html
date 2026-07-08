@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}同业基金分析{% endblock %} · 权益竞争对手分析</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/adls.css') }}">
+  <script src="{{ url_for('static', filename='js/vendor/echarts.min.js') }}"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      权益同业分析 <span class="sub">EQUITY PEER</span>
+    </div>
+    <nav>
+      <a href="{{ url_for('module1') }}" class="{{ 'active' if active=='m1' }}">
+        <span class="idx">01</span>业绩及规模概况
+      </a>
+      <a href="{{ url_for('module2') }}" class="{{ 'active' if active=='m2' }}">
+        <span class="idx">02</span>持仓及变动分析
+      </a>
+      <a href="{{ url_for('module3') }}" class="{{ 'active' if active=='m3' }}">
+        <span class="idx">03</span>规模及变动分析
+      </a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="meta">数据截至 {{ LATEST_Q }} · 我司 {{ OUR_COMPANY }}</div>
+  </header>
+
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

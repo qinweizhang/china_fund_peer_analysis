@@ -1,0 +1,225 @@
+/* AbleMind Pro Design Language (ADLS v2.1) — 深海色板 / 完全去背 / 绝对正交
+   参照 reference/ADSL.md 实现。 */
+:root {
+  --able-primary: #205781;
+  --able-mint: #4F959D;
+  --slate-50: #F8FAFC;
+  --slate-100: #F1F5F9;
+  --slate-200: #E2E8F0;
+  --slate-300: #CBD5E1;
+  --slate-400: #94A3B8;
+  --slate-500: #64748B;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-900: #0F172A;
+  --up: #10b981;        /* A股：红跌绿涨 */
+  --down: #ef4444;
+  --warn: #f59e0b;
+  --radius: 0;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--slate-50);
+  color: var(--slate-700);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  font-feature-settings: "tnum";   /* 等宽数字，金融数据核心 */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 滚动条极简 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--slate-300); }
+::-webkit-scrollbar-thumb:hover { background: var(--slate-400); }
+
+a { color: var(--able-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ===== 顶部导航 ===== */
+.topbar {
+  display: flex;
+  align-items: stretch;
+  background: var(--slate-50);
+  border-bottom: 1px solid var(--slate-300);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar .brand {
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--able-primary);
+  border-right: 1px solid var(--slate-300);
+}
+.topbar .brand .sub { color: var(--slate-400); margin-left: 8px; font-weight: 600; }
+.topbar nav { display: flex; }
+.topbar nav a {
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--slate-500);
+  border-right: 1px solid var(--slate-200);
+  letter-spacing: .04em;
+}
+.topbar nav a .idx {
+  color: var(--slate-400); margin-right: 6px; font-weight: 700;
+}
+.topbar nav a:hover { background: var(--slate-100); text-decoration: none; color: var(--slate-700); }
+.topbar nav a.active {
+  color: #fff;
+  background: var(--able-primary);
+}
+.topbar nav a.active .idx { color: rgba(255,255,255,.6); }
+.topbar .spacer { flex: 1; }
+.topbar .meta {
+  padding: 0 16px;
+  display: flex; align-items: center;
+  font-size: 11px; color: var(--slate-400);
+  border-left: 1px solid var(--slate-300);
+}
+
+/* ===== 页面骨架 ===== */
+.page { padding: 16px; }
+.page-head {
+  display: flex; align-items: baseline; gap: 12px;
+  margin-bottom: 14px;
+}
+.page-head h1 {
+  margin: 0;
+  font-size: 16px; font-weight: 700; letter-spacing: -.01em;
+  color: var(--slate-900); text-transform: none;
+}
+.page-head .lede { font-size: 12px; color: var(--slate-500); }
+
+/* ===== 容器 Bento Box ===== */
+.box {
+  border: 1px solid var(--slate-300);
+  background: var(--slate-50);   /* 去背：与全局底色统一 */
+  display: flex; flex-direction: column;
+  margin-bottom: 16px;
+}
+.box .box-head {
+  height: 32px;
+  background: var(--slate-100);
+  border-bottom: 1px solid var(--slate-300);
+  padding: 0 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.box .box-head .title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--slate-600);
+}
+.box .box-head .badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  color: var(--slate-400); letter-spacing: .08em;
+}
+.box .box-head .right { margin-left: auto; font-size: 11px; color: var(--slate-400); }
+.box .box-body { padding: 0; overflow: auto; flex: 1; }
+.box .box-body.padded { padding: 12px; }
+.box .box-foot {
+  border-top: 1px solid var(--slate-200);
+  padding: 8px 12px;
+  font-size: 11px; color: var(--slate-400);
+  line-height: 1.6;
+}
+
+/* 网格布局 */
+.grid { display: grid; gap: 16px; }
+.grid-2 { grid-template-columns: 1fr 1fr; }
+.grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 1100px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+}
+
+/* ===== 数据表格 ===== */
+table.data {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+table.data th, table.data td {
+  border-right: 1px solid var(--slate-200);
+  border-bottom: 1px solid var(--slate-200);
+  padding: 5px 8px;
+  white-space: nowrap;
+  text-align: right;
+}
+table.data th {
+  background: var(--slate-50);
+  border-bottom: 1px solid var(--slate-300);
+  color: var(--slate-500);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  position: sticky; top: 0;
+}
+table.data td.l, table.data th.l { text-align: left; }
+table.data td.c, table.data th.c { text-align: center; }
+table.data td.num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+table.data tbody tr:hover { background: var(--slate-100); }
+table.data tr.us { background: rgba(79,149,157,.08); }
+table.data tr.us:hover { background: rgba(79,149,157,.16); }
+table.data tr.us td:first-child { border-left: 2px solid var(--able-mint); }
+table.data tr.avg td { background: var(--slate-100); font-weight: 700; color: var(--slate-600); }
+table.data tr.rank td { background: var(--slate-50); color: var(--slate-500); font-size: 11px; }
+table.data tr.section td {
+  background: var(--slate-100); color: var(--slate-500);
+  font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  font-size: 11px; text-align: left;
+}
+
+/* 涨跌色 */
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--slate-400); }
+
+/* 板块配置热力（红=靠前/超配 绿=靠后/低配） */
+td.cell-strong { color: var(--down); font-weight: 700; }      /* >30% */
+td.cell-over { background: rgba(239,68,68,.10); }
+td.cell-under { background: rgba(16,185,129,.10); }
+td.cell-pos-strong { background: rgba(239,68,68,.22); }   /* 增持>6% */
+td.cell-pos { background: rgba(239,68,68,.10); }          /* 增持3-6% */
+td.cell-neg-strong { background: rgba(16,185,129,.22); }  /* 减持>6% */
+td.cell-neg { background: rgba(16,185,129,.10); }         /* 减持3-6% */
+
+/* 重仓股单元格 */
+td.hold-cell { text-align: left; }
+td.hold-cell .nm { color: var(--slate-700); }
+td.hold-cell .rt { color: var(--slate-400); font-size: 11px; margin-left: 2px; }
+
+/* ===== 图表容器 ===== */
+.chart { width: 100%; height: 320px; }
+.chart-lg { height: 380px; }
+
+/* ===== KPI / 标签 ===== */
+.kpi-row { display: flex; gap: 1px; background: var(--slate-300); border: 1px solid var(--slate-300); }
+.kpi { flex: 1; background: var(--slate-50); padding: 10px 12px; }
+.kpi .k { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--slate-400); font-weight: 700; }
+.kpi .v { font-size: 20px; font-weight: 700; color: var(--slate-900); font-family: ui-monospace, monospace; margin-top: 2px; }
+.kpi .d { font-size: 11px; color: var(--slate-500); margin-top: 1px; }
+
+.tag {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border: 1px solid var(--slate-300); color: var(--slate-500);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.tag.mint { color: var(--able-mint); border-color: var(--able-mint); }
+.tag.primary { color: #fff; background: var(--able-primary); border-color: var(--able-primary); }
+
+.note { font-size: 11px; color: var(--slate-400); line-height: 1.7; }
+.note b { color: var(--slate-500); }

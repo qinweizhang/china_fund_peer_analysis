@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}同业业绩及规模概况{% endblock %}
+
+{% macro pct(v) -%}
+{%- if v is none %}<span class="flat">—</span>
+{%- elif v > 0 %}<span class="up">+{{ "%.2f"|format(v*100) }}%</span>
+{%- elif v < 0 %}<span class="down">{{ "%.2f"|format(v*100) }}%</span>
+{%- else %}<span class="flat">0.00%</span>{%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <h1>同业业绩及规模概况</h1>
+  <span class="lede">十五大基金公司权益规模、业绩与规模变动拆分（2026Q1，按当年业绩降序）</span>
+</div>
+
+{# KPI 行 #}
+<div class="kpi-row" style="margin-bottom:16px;">
+  <div class="kpi"><div class="k">样本公司</div><div class="v">15</div><div class="d">偏股规模前十五大</div></div>
+  <div class="kpi"><div class="k">我司规模排名</div><div class="v">11</div><div class="d">1068 亿元 · QoH +2%</div></div>
+  <div class="kpi"><div class="k">规模涨幅最大</div><div class="v" style="color:var(--up)">永赢</div><div class="d">+29% · 1469 亿元</div></div>
+  <div class="kpi"><div class="k">Q1 业绩夺冠</div><div class="v" style="color:var(--up)">大成</div><div class="d">+2.42% · 三年 38.7%</div></div>
+</div>
+
+<div class="box">
+  <div class="box-head">
+    <span class="title">同业十五家基金公司权益规模及业绩情况</span>
+    <span class="badge">TABLE 01</span>
+    <span class="right">单位：亿元 / %</span>
+  </div>
+  <div class="box-body">
+    <table class="data">
+      <thead>
+        <tr>
+          <th class="c">序号</th>
+          <th class="l">基金公司</th>
+          <th>2025Q4<br>末规模</th>
+          <th>2026Q1<br>末规模</th>
+          <th>规模变动<br>幅度</th>
+          <th colspan="3" class="c">2026Q1 规模变动拆分（亿元）</th>
+          <th>2026Q1<br>投资收益率</th>
+          <th class="c">十五大<br>排名</th>
+          <th class="c">同业<br>排名</th>
+          <th>2024-2026<br>投资收益率</th>
+          <th class="c">同业<br>排名</th>
+        </tr>
+        <tr>
+          <th colspan="5"></th>
+          <th class="c">收益率上涨</th>
+          <th class="c">持营</th>
+          <th class="c">新发</th>
+          <th colspan="5"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="{{ 'us' if r.is_us }}">
+          <td class="c num">{{ r.seq }}</td>
+          <td class="l">
+            {{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}
+          </td>
+          <td class="num">{{ r.scale_q4 }}</td>
+          <td class="num">{{ r.scale_q1 }}</td>
+          <td class="num {{ 'up' if r.chg_pct > 0 else 'down' if r.chg_pct < 0 else 'flat' }}">
+            {{ "%+d"|format(r.chg_pct) }}%
+          </td>
+          <td class="num {{ 'up' if r.perf_contrib > 0 else 'down' if r.perf_contrib < 0 else 'flat' }}">{{ "%+d"|format(r.perf_contrib) }}</td>
+          <td class="num {{ 'up' if r.holding > 0 else 'down' if r.holding < 0 else 'flat' }}">{{ "%+d"|format(r.holding) }}</td>
+          <td class="num">{{ r.new_issue }}</td>
+          <td class="num">{{ pct(r.ret_q) }}</td>
+          <td class="c num">{{ r.seq }}/15</td>
+          <td class="c num">{{ r.rank_q }}</td>
+          <td class="num">{{ pct(r.ret_3y) }}</td>
+          <td class="c num">{{ r.rank_3y }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="box-foot note">
+    <b>口径说明</b>（demo 第一阶段，数据来自 input_data/竞争对手分析-基础数据20260331.xlsx）：<br>
+    · 规模 = 产品规模表 TOTAL_NAV 按公司求和（全口径，亿元）；业绩 = 权益银河排名 POINTRATE。<br>
+    · 规模变动拆分（demo 近似）：Δ = Q1−Q4；新发 = 当季新成立基金 Q1 规模；业绩贡献 = Q4规模 × 当季收益率；持营 = Δ − 新发 − 业绩贡献。<br>
+    · 与报告 PDF 对比：规模与排名数据一致；拆分项因口径（持营/新发归属规则）差异可能存在偏差，第二阶段对齐。
+  </div>
+</div>
+{% endblock %}

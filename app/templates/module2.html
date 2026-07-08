@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}同业持仓及变动分析{% endblock %}
+
+{% macro cell_cls(val, kind) -%}
+{%- if kind == 'alloc' -%}
+{%- if val > 0.30 %}cell-strong cell-over
+{%- elif val > 0.20 %}cell-over
+{%- endif -%}
+{%- elif kind == 'chg' -%}
+{%- if val > 0.06 %}cell-pos-strong
+{%- elif val > 0.03 %}cell-pos
+{%- elif val < -0.06 %}cell-neg-strong
+{%- elif val < -0.03 %}cell-neg
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro fmt_pct(v, digits=2) -%}
+{%- if v is none %}—{% else %}{{ "%.2f"|format(v*100) }}%{% endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <h1>同业持仓及变动分析</h1>
+  <span class="lede">板块配置 · 重仓股 · 集中度与仓位（2026Q1，持仓口径取前十大重仓股加总）</span>
+</div>
+
+{# ===== 2.1 板块配置 ===== #}
+<div class="box">
+  <div class="box-head">
+    <span class="title">基金公司季度板块配置</span>
+    <span class="badge">2.1 · TABLE</span>
+    <span class="right">单位：占股票市值比</span>
+  </div>
+  <div class="box-body">
+    <table class="data">
+      <thead>
+        <tr>
+          <th class="l">基金公司</th>
+          <th>TMT</th><th>金融地产</th><th>消费</th><th>新能源及制造</th><th>周期</th><th>医药</th>
+          <th>A股</th><th>港股</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in board_rows %}
+        <tr class="{{ 'us' if r.is_us }}">
+          <td class="l">{{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}</td>
+          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药','A股','港股'] %}
+          <td class="num {{ cell_cls(r[b], 'alloc') }}">{{ fmt_pct(r[b]) }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+        {% for r in board_extra %}
+        <tr class="{{ 'avg' if r.corp=='平均值' else 'rank' }}">
+          <td class="l">{{ r.corp }}</td>
+          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药','A股','港股'] %}
+          <td class="num">{{ fmt_pct(r[b]) if r.corp=='平均值' else r[b] }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="box-foot note">
+    <b>着色</b>：橙色 = 单一板块占比 &gt; 30%。数据来源：公司持仓明细 + 行业板块对应关系。<b>口径</b>（demo 近似）：各公司持仓个股按行业→板块映射，市值求和归一化；报告口径为“各基金前十大重仓股加总”，第二阶段对齐。
+  </div>
+</div>
+
+{# ===== 2.1b 板块配置变动 ===== #}
+<div class="box">
+  <div class="box-head">
+    <span class="title">基金公司较上季度板块变化（剔除涨跌幅）</span>
+    <span class="badge">2.1 · CHANGE</span>
+    <span class="right">深红=增持&gt;6% · 深绿=减持&gt;6%</span>
+  </div>
+  <div class="box-body">
+    <table class="data">
+      <thead>
+        <tr>
+          <th class="l">基金公司</th>
+          <th>TMT</th><th>金融地产</th><th>消费</th><th>新能源及制造</th><th>周期</th><th>医药</th>
+          <th>A股</th><th>港股</th><th>行业调整比例</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in change_rows %}
+        <tr class="{{ 'us' if r.is_us }}">
+          <td class="l">{{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}</td>
+          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药','A股','港股'] %}
+          <td class="num {{ cell_cls(r[b], 'chg') }}">{{ "%+.2f"|format(r[b]*100) }}%</td>
+          {% endfor %}
+          <td class="num">{{ fmt_pct(r.adjust) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="box-foot note">
+    <b>口径</b>（demo 近似）：本期占比 − 上期占比（未剔除行业涨跌幅，仅做市值占比差）；报告口径需用行业收益率剔除涨跌幅影响，第二阶段实现。
+  </div>
+</div>
+
+{# ===== 2.2 重仓股 ===== #}
+<div class="box">
+  <div class="box-head">
+    <span class="title">基金公司季度持仓前十大股票（季度收益率%）</span>
+    <span class="badge">2.2 · TOP10</span>
+  </div>
+  <div class="box-body">
+    <table class="data">
+      <thead>
+        <tr>
+          <th class="l">基金公司</th>
+          {% for i in range(1,11) %}<th class="c">{{ i }}</th>{% endfor %}
+          <th>季度平均涨跌幅</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in top10 %}
+        <tr class="{{ 'us' if r.is_us }}">
+          <td class="l">{{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}</td>
+          {% for s in r.stocks %}
+          <td class="hold-cell">
+            <span class="nm">{{ s.name }}</span>
+            {% if s.ret is not none %}
+              <span class="rt {{ 'up' if s.ret > 0 else 'down' }}">{{ "%+.1f"|format(s.ret*100) }}</span>
+            {% else %}<span class="rt">—</span>{% endif %}
+          </td>
+          {% endfor %}
+          {% for i in range(10 - r.stocks|length) %}<td class="flat">—</td>{% endfor %}
+          <td class="num {{ 'up' if r.avg_ret and r.avg_ret > 0 else 'down' if r.avg_ret and r.avg_ret < 0 else 'flat' }}">
+            {{ "%+.1f"|format(r.avg_ret*100) if r.avg_ret is not none else '—' }}%
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="box-foot note">
+    <b>口径</b>（demo 近似）：按公司持仓明细市值降序取前 10，收益来自个股收益率表；报告口径为“各基金前十大重仓股加总”后排序，存在差异。
+  </div>
+</div>
+
+{# ===== 2.3 集中度与仓位 ===== #}
+<div class="grid grid-2">
+  <div class="box">
+    <div class="box-head"><span class="title">TOP20 个股集中度变动</span><span class="badge">2.3 · CHART</span></div>
+    <div class="box-body padded"><div id="chart-top20" class="chart"></div></div>
+  </div>
+  <div class="box">
+    <div class="box-head"><span class="title">TOP3 行业集中度变动</span><span class="badge">2.3 · CHART</span></div>
+    <div class="box-body padded"><div id="chart-top3" class="chart"></div></div>
+  </div>
+  <div class="box">
+    <div class="box-head"><span class="title">规模加权仓位变动</span><span class="badge">2.3 · CHART</span></div>
+    <div class="box-body padded"><div id="chart-pos-w" class="chart"></div></div>
+  </div>
+  <div class="box">
+    <div class="box-head"><span class="title">算术平均仓位变动</span><span class="badge">2.3 · CHART</span></div>
+    <div class="box-body padded"><div id="chart-pos-a" class="chart"></div></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const CONC = {{ concentration_json|safe }};
+  const POS = {{ position_json|safe }};
+  const US = "{{ OUR_COMPANY }}";
+  document.addEventListener("DOMContentLoaded", () => {
+    renderTimeSeries("chart-top20", CONC.top20, "values", "%", US);
+    renderTimeSeries("chart-top3", CONC.top3, "values", "%", US);
+    renderTimeSeries("chart-pos-w", POS, "weighted", "%", US);
+    renderTimeSeries("chart-pos-a", POS, "arith", "%", US);
+  });
+</script>
+{% endblock %}
