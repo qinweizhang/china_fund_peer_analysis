@@ -206,14 +206,14 @@ function renderTypeBar(elId, data) {
   const chart = echarts.init(el, null, { renderer: "canvas" });
   chart.setOption({
     backgroundColor: "transparent",
-    grid: { left: 48, right: 16, top: 24, bottom: 90 },
+    grid: { left: 48, right: 16, top: 24, bottom: 100 },
     tooltip: {
       trigger: "axis", backgroundColor: ADLS.bg, borderColor: ADLS.slate300,
       textStyle: { color: ADLS.slate700, fontSize: 11 },
       extraCssText: "box-shadow:none;border-radius:0;",
       formatter: (p) => `${p[0].name}<br/>规模变动: ${p[0].value} 亿`,
     },
-    xAxis: { type: "category", data: data.types, ...axisStyle({ axisLabel: { color: ADLS.slate500, fontSize: 10, rotate: 35, interval: 0 } }) },
+    xAxis: { type: "category", data: data.types, ...axisStyle({ axisLabel: { color: ADLS.slate500, fontSize: 9, rotate: 45, interval: 0 } }) },
     yAxis: { type: "value", name: "亿元", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
     series: [{ type: "bar", data: series, barWidth: "55%" }],
   });

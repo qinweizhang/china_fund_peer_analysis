@@ -68,29 +68,29 @@
   </div>
 </div>
 
-{# ===== 图3.1 规模变化区间 基金数量 + 平均收益率 ===== #}
-<div class="box">
-  <div class="box-head">
-    <span class="title">图3.1 各规模变化区间下基金数量及{{ LATEST_Q_LABEL }}平均收益率</span>
-    <span class="badge">3.1 · CHART</span>
-    <span class="right">柱=基金数量 · 折线=平均收益率(右轴)</span>
+{# ===== 图3.1 / 图3.2 规模区间 + 类型规模变动（并排） ===== #}
+<div class="grid grid-2">
+  <div class="box">
+    <div class="box-head">
+      <span class="title">各规模变化区间下基金数量及{{ LATEST_Q_LABEL }}平均收益率</span>
+      <span class="badge">3.1 · CHART</span>
+      <span class="right">柱=数量 · 折线=收益率(右轴)</span>
+    </div>
+    <div class="box-body padded"><div id="chart-bin" class="chart chart-lg"></div></div>
+    <div class="box-foot note">
+      <b>口径</b>：仅取最新季与上一季均在的产品（上一季规模&gt;0），按规模变动幅度(%)分箱；柱为基金数量，折线为箱内基金平均季度收益率（unit_nav 基金级口径）。箱体区间固定，数值随传入数据自适应。
+    </div>
   </div>
-  <div class="box-body padded"><div id="chart-bin" class="chart chart-lg"></div></div>
-  <div class="box-foot note">
-    <b>口径</b>：仅取最新季与上一季均在的产品（上一季规模&gt;0），按规模变动幅度(%)分箱；柱为基金数量，折线为箱内基金平均季度收益率（unit_nav 基金级口径）。箱体区间固定，数值随传入数据自适应。
-  </div>
-</div>
-
-{# ===== 图3.2 各类型产品规模变动 ===== #}
-<div class="box">
-  <div class="box-head">
-    <span class="title">图3.2 各类型产品{{ LATEST_Q_LABEL }}规模变动</span>
-    <span class="badge">3.1 · CHART</span>
-    <span class="right">按事后分类 · 单位：亿元</span>
-  </div>
-  <div class="box-body padded"><div id="chart-type" class="chart chart-lg"></div></div>
-  <div class="box-foot note">
-    <b>口径</b>：最新季与上一季均在的产品，按事后分类汇总 (q1−q4) 规模变动（亿元），降序。绿=增长、红=缩减。类型与数值随传入数据自适应。
+  <div class="box">
+    <div class="box-head">
+      <span class="title">各类型产品{{ LATEST_Q_LABEL }}规模变动</span>
+      <span class="badge">3.2 · CHART</span>
+      <span class="right">事后分类 · 亿元</span>
+    </div>
+    <div class="box-body padded"><div id="chart-type" class="chart chart-lg"></div></div>
+    <div class="box-foot note">
+      <b>口径</b>：最新季与上一季均在的产品，按事后分类汇总 (q1−q4) 规模变动（亿元），降序。绿=增长、红=缩减。类型与数值随传入数据自适应。
+    </div>
   </div>
 </div>
 
