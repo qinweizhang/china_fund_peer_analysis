@@ -513,6 +513,59 @@ def scale_history() -> dict:
     return {"rows": rows, "quarters": all_q, "split_quarters": split_qs}
 
 
+def scale_bin_chart() -> dict:
+    """图3.1：各规模变化区间下基金数量 + 平均收益率。
+
+    口径：仅取最新季与上一季均在的产品（上一季规模>0），按规模变动幅度(%)分箱；
+    柱=基金数量，折线=箱内基金平均季度收益率（unit_nav 基金级口径）。
+    """
+    ps = dl.product_scale()
+    _, LATEST_Q, PREV_Q = _q()
+    ret_fund, _ = _fund_returns()
+    latest_ts, prev_ts = pd.Timestamp(LATEST_Q), pd.Timestamp(PREV_Q)
+    q4 = ps[ps["pub_date"] == prev_ts].set_index("fund_code")["total_nav"]
+    q1 = ps[ps["pub_date"] == latest_ts].set_index("fund_code")["total_nav"]
+    common = q1.index.intersection(q4.index)
+    common = [fc for fc in common if pd.notna(q4[fc]) and q4[fc] > 0]
+    if not common:
+        return {"labels": [], "counts": [], "returns": []}
+    chg = ((q1.loc[common] - q4.loc[common]) / q4.loc[common] * 100)
+    fret = ret_fund[latest_ts] if latest_ts in ret_fund.columns else pd.Series(dtype=float)
+
+    bins = [-1e9, -50, -30, -10, 0, 10, 30, 50, 100, 1e9]
+    labels = ["<-50%", "-50~-30%", "-30~-10%", "-10~0%", "0~10%",
+              "10~30%", "30~50%", "50~100%", ">100%"]
+    cat = pd.cut(chg, bins=bins, labels=labels, right=True, include_lowest=True)
+    counts, rets = [], []
+    for lab in labels:
+        fc_in = chg[cat == lab].index
+        rv = [fret.get(fc) for fc in fc_in]
+        rv = [float(v) for v in rv if pd.notna(v)]
+        counts.append(int(len(fc_in)))
+        rets.append(round(sum(rv) / len(rv) * 100, 2) if rv else None)
+    return {"labels": labels, "counts": counts, "returns": rets}
+
+
+def type_scale_change() -> dict:
+    """图3.2：各类型产品最新季度规模变动（按事后分类，亿元）。
+
+    口径：最新季与上一季均在的产品，按事后分类汇总 (q1−q4)，降序。
+    """
+    ps = dl.product_scale()
+    pc = dl.post_classify()
+    _, LATEST_Q, PREV_Q = _q()
+    pc_latest = {_fc_key(k): v for k, v in
+                 pc.sort_values("pub_date").groupby("fund_code").last()["industries_name"].items()}
+    q4 = ps[ps["pub_date"] == pd.Timestamp(PREV_Q)].set_index("fund_code")["total_nav"]
+    q1 = ps[ps["pub_date"] == pd.Timestamp(LATEST_Q)].set_index("fund_code")["total_nav"]
+    common = q1.index.intersection(q4.index)
+    delta = q1.loc[common] - q4.loc[common]
+    types = [pc_latest.get(_fc_key(fc)) for fc in delta.index]
+    df = pd.DataFrame({"type": types, "delta": delta.values}, index=delta.index).dropna(subset=["type"])
+    grp = df.groupby("type")["delta"].sum().sort_values(ascending=False)
+    return {"types": list(grp.index), "deltas": [round(float(v), 1) for v in grp.values]}
+
+
 def product_top10() -> tuple[list[dict], list[dict]]:
     """一季度规模增长 TOP10 / 缩减 TOP10 产品。
 

@@ -167,3 +167,55 @@ function renderStackedArea(elId, data, usName) {
   });
   window.addEventListener("resize", () => chart.resize());
 }
+
+/* 图3.1：规模变化区间 基金数量(柱) + 平均收益率(折线,右轴) */
+function renderBinBarLine(elId, data) {
+  const el = document.getElementById(elId);
+  if (!el || !data || !data.labels) return;
+  const chart = echarts.init(el, null, { renderer: "canvas" });
+  chart.setOption({
+    backgroundColor: "transparent",
+    grid: { left: 48, right: 56, top: 30, bottom: 60 },
+    tooltip: {
+      trigger: "axis", backgroundColor: ADLS.bg, borderColor: ADLS.slate300,
+      textStyle: { color: ADLS.slate700, fontSize: 11 },
+      extraCssText: "box-shadow:none;border-radius:0;",
+    },
+    legend: { textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
+    xAxis: { type: "category", data: data.labels, ...axisStyle({ axisLabel: { color: ADLS.slate500, fontSize: 10, rotate: 30 } }) },
+    yAxis: [
+      { type: "value", name: "基金数量", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
+      { type: "value", name: "平均收益率%", nameTextStyle: { color: ADLS.slate400, fontSize: 10 },
+        ...axisStyle({ splitLine: { show: false } }), axisLabel: { formatter: (v) => v + "%" } },
+    ],
+    series: [
+      { name: "基金数量", type: "bar", data: data.counts, itemStyle: { color: ADLS.primary }, barWidth: "60%" },
+      { name: "平均收益率", type: "line", yAxisIndex: 1, data: data.returns, symbol: "circle", symbolSize: 6,
+        lineStyle: { width: 2, color: ADLS.down }, itemStyle: { color: ADLS.down },
+        connectNulls: true },
+    ],
+  });
+  window.addEventListener("resize", () => chart.resize());
+}
+
+/* 图3.2：各类型产品规模变动（柱，正绿负红） */
+function renderTypeBar(elId, data) {
+  const el = document.getElementById(elId);
+  if (!el || !data || !data.types) return;
+  const series = data.deltas.map((v) => ({ value: v, itemStyle: { color: v >= 0 ? ADLS.up : ADLS.down } }));
+  const chart = echarts.init(el, null, { renderer: "canvas" });
+  chart.setOption({
+    backgroundColor: "transparent",
+    grid: { left: 48, right: 16, top: 24, bottom: 90 },
+    tooltip: {
+      trigger: "axis", backgroundColor: ADLS.bg, borderColor: ADLS.slate300,
+      textStyle: { color: ADLS.slate700, fontSize: 11 },
+      extraCssText: "box-shadow:none;border-radius:0;",
+      formatter: (p) => `${p[0].name}<br/>规模变动: ${p[0].value} 亿`,
+    },
+    xAxis: { type: "category", data: data.types, ...axisStyle({ axisLabel: { color: ADLS.slate500, fontSize: 10, rotate: 35, interval: 0 } }) },
+    yAxis: { type: "value", name: "亿元", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
+    series: [{ type: "bar", data: series, barWidth: "55%" }],
+  });
+  window.addEventListener("resize", () => chart.resize());
+}

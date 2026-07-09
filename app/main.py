@@ -101,6 +101,8 @@ def module3():
         rvd=metrics.return_vs_drawdown(),
         yongying=metrics.yongying_products(),
         layout_json=json.dumps(metrics.product_layout(), ensure_ascii=False),
+        scale_bin_json=json.dumps(metrics.scale_bin_chart(), ensure_ascii=False),
+        type_change_json=json.dumps(metrics.type_scale_change(), ensure_ascii=False),
     )
 
 
