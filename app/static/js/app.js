@@ -100,39 +100,41 @@ function renderTimeSeries(elId, data, field, valueSuffix, usName, opts = {}) {
   window.addEventListener("resize", () => chart.resize());
 }
 
-/* 收益率 vs 最大回撤 散点 */
+/* 各公司 加权最大回撤(x) vs 加权收益率(y) 散点：每公司异色、点旁标名、悬浮显示数据 */
 function renderScatter(elId, points, usName) {
   const el = document.getElementById(elId);
   if (!el || !points) return;
-  const series = [
-    {
-      name: "同业",
-      type: "scatter",
-      symbolSize: 9,
-      data: points.filter(p => !p.is_us).map(p => ({ value: [p.ret, p.dd], name: p.corp })),
-      itemStyle: { color: ADLS.slate400 },
+  // 每个公司一个 series，便于异色 + 图例；我司红色加粗置顶
+  const series = points.map((p, i) => ({
+    name: p.corp,
+    type: "scatter",
+    symbolSize: p.is_us ? 16 : 11,
+    z: p.is_us ? 20 : 1,
+    data: [{ value: [p.dd, p.ret], name: p.corp }],
+    itemStyle: { color: p.is_us ? ADLS.down : PALETTE[i % PALETTE.length] },
+    label: {
+      show: true,
+      formatter: p.corp,
+      position: "right",
+      fontSize: 9,
+      color: p.is_us ? ADLS.down : ADLS.slate700,
     },
-    {
-      name: usName,
-      type: "scatter",
-      symbolSize: 13,
-      data: points.filter(p => p.is_us).map(p => ({ value: [p.ret, p.dd], name: p.corp })),
-      itemStyle: { color: ADLS.down },
-    },
-  ];
+    labelLayout: { hideOverlap: true },
+  }));
   const chart = echarts.init(el, null, { renderer: "canvas" });
   chart.setOption({
     backgroundColor: "transparent",
-    grid: baseGrid(),
+    grid: { left: 56, right: 24, top: 16, bottom: 40 },
     tooltip: {
       trigger: "item",
       backgroundColor: ADLS.bg, borderColor: ADLS.slate300,
       textStyle: { color: ADLS.slate700, fontSize: 11 },
-      formatter: (p) => `${p.data.name}<br/>收益率: ${p.value[0]}%<br/>最大回撤: ${p.value[1]}%`,
+      extraCssText: "box-shadow:none;border-radius:0;",
+      formatter: (p) => `${p.data.name}<br/>加权收益率: ${p.value[1]}%<br/>加权最大回撤: ${p.value[0]}%`,
     },
-    legend: { textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
-    xAxis: { type: "value", name: "收益率(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
-    yAxis: { type: "value", name: "最大回撤(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
+    legend: { type: "scroll", textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
+    xAxis: { type: "value", name: "加权最大回撤(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
+    yAxis: { type: "value", name: "加权收益率(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
     series,
   });
   window.addEventListener("resize", () => chart.resize());

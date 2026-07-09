@@ -206,6 +206,9 @@ table.data td.c, table.data th.c { text-align: center; }
 table.data th.sep, table.data td.sep { border-left: 2px solid var(--slate-500); }
 table.data tr.excl td { background: rgba(79,149,157,.10); }
 table.data tr.excl td:first-child { border-left: 2px solid var(--able-mint); }
+/* 合并表区间标签列 + 分区间粗线 */
+table.data td.sec { background: var(--slate-100); font-weight: 700; color: var(--able-primary); text-align: center; vertical-align: middle; letter-spacing: .04em; }
+table.data tr.sec-bound td { border-top: 2px solid var(--slate-500); }
 table.data th.grp {
   text-align: center;
   background: var(--slate-100);

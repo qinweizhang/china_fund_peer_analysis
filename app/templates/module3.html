@@ -94,52 +94,76 @@
   </div>
 </div>
 
-{# ===== 散点：收益率 vs 最大回撤 ===== #}
+{# ===== 规模增长TOP10 及 缩减TOP10（合并表） ===== #}
 <div class="box">
-  <div class="box-head"><span class="title">各公司{{ LATEST_Q_LABEL }}加权最大回撤与收益率</span><span class="badge">3.1 · SCATTER</span></div>
-  <div class="box-body padded"><div id="chart-rvd" class="chart chart-lg"></div></div>
-  <div class="box-foot note"><b>口径</b>（demo 近似）：收益率取银河公司口径；最大回撤为公司旗下产品复权净值等权平均。</div>
+  <div class="box-head">
+    <span class="title">规模增长TOP10及缩减TOP10产品业绩及最大回撤</span>
+    <span class="badge">3.1 · TOP10</span>
+    <span class="right">单位：亿元 / %</span>
+  </div>
+  <div class="box-body">
+    <table class="data">
+      <thead>
+        <tr>
+          <th class="c">区间</th>
+          <th class="l">基金公司</th>
+          <th class="l">基金名称</th>
+          <th>成立日期</th>
+          <th class="l">产品类型</th>
+          <th>{{ PREV_Q_LABEL }}规模（亿元）</th>
+          <th>{{ LATEST_Q_LABEL }}规模（亿元）</th>
+          <th>规模变动（亿元）</th>
+          <th>{{ LATEST_Q_LABEL }}收益率</th>
+          <th>{{ LATEST_Q_LABEL }}最大回撤</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in growth %}
+        <tr class="{{ 'us' if r.corp == OUR_COMPANY }}">
+          {% if loop.first %}<td class="c sec" rowspan="{{ growth|length }}">增长TOP10</td>{% endif %}
+          <td class="l">{{ r.corp }}</td>
+          <td class="l">{{ r.name }}</td>
+          <td class="c num">{{ r.estab }}</td>
+          <td class="l">{{ r.type }}</td>
+          <td class="num">{{ r.q4 }}</td>
+          <td class="num">{{ r.q1 }}</td>
+          <td class="num up">{{ "%+.1f"|format(r.delta) }}</td>
+          <td class="num {{ 'up' if r.ret and r.ret>0 else 'down' }}">{{ "%.2f"|format(r.ret) if r.ret is not none else '—' }}%</td>
+          <td class="num down">{{ "%.2f"|format(r.max_dd) if r.max_dd is not none else '—' }}%</td>
+        </tr>
+        {% endfor %}
+        {% for r in decline %}
+        <tr class="{{ 'sec-bound' if loop.first }}{{ ' us' if r.corp == OUR_COMPANY }}">
+          {% if loop.first %}<td class="c sec" rowspan="{{ decline|length }}">缩减TOP10</td>{% endif %}
+          <td class="l">{{ r.corp }}</td>
+          <td class="l">{{ r.name }}</td>
+          <td class="c num">{{ r.estab }}</td>
+          <td class="l">{{ r.type }}</td>
+          <td class="num">{{ r.q4 }}</td>
+          <td class="num">{{ r.q1 }}</td>
+          <td class="num down">{{ "%+.1f"|format(r.delta) }}</td>
+          <td class="num {{ 'up' if r.ret and r.ret>0 else 'down' }}">{{ "%.2f"|format(r.ret) if r.ret is not none else '—' }}%</td>
+          <td class="num down">{{ "%.2f"|format(r.max_dd) if r.max_dd is not none else '—' }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="box-foot note">
+    <b>口径</b>：规模变动 = {{ LATEST_Q_LABEL }} − {{ PREV_Q_LABEL }} 规模；收益率与最大回撤基于产品复权净值（{{ LATEST_Q_LABEL }}区间）。我司行高亮。
+  </div>
 </div>
 
-{# ===== TOP10 增长 / 缩减 ===== #}
-<div class="grid grid-2">
-  <div class="box">
-    <div class="box-head"><span class="title">{{ LATEST_Q_LABEL }}规模增长 TOP10 产品</span><span class="badge">3.1 · GROWTH</span></div>
-    <div class="box-body">
-      <table class="data">
-        <thead><tr><th class="l">基金名称</th><th class="l">公司</th><th class="l">类型</th><th>{{ PREV_Q_LABEL }}规模</th><th>{{ LATEST_Q_LABEL }}规模</th><th>规模变动</th><th>收益率</th><th>最大回撤</th></tr></thead>
-        <tbody>
-          {% for r in growth %}
-          <tr class="{{ 'us' if r.corp == OUR_COMPANY }}">
-            <td class="l">{{ r.name }}</td><td class="l">{{ r.corp }}</td><td class="l">{{ r.type }}</td>
-            <td class="num">{{ r.q4 }}</td><td class="num">{{ r.q1 }}</td>
-            <td class="num up">{{ "%+.1f"|format(r.delta) }}</td>
-            <td class="num {{ 'up' if r.ret and r.ret>0 else 'down' }}">{{ "%.2f"|format(r.ret) if r.ret is not none else '—' }}%</td>
-            <td class="num down">{{ "%.2f"|format(r.max_dd) if r.max_dd is not none else '—' }}%</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+{# ===== 散点：各公司加权最大回撤 vs 收益率 ===== #}
+<div class="box">
+  <div class="box-head">
+    <span class="title">各公司{{ LATEST_Q_LABEL }}加权最大回撤与收益率</span>
+    <span class="badge">3.1 · SCATTER</span>
+    <span class="right">x=加权最大回撤 · y=加权收益率</span>
   </div>
-  <div class="box">
-    <div class="box-head"><span class="title">{{ LATEST_Q_LABEL }}规模缩减 TOP10 产品</span><span class="badge">3.1 · DECLINE</span></div>
-    <div class="box-body">
-      <table class="data">
-        <thead><tr><th class="l">基金名称</th><th class="l">公司</th><th class="l">类型</th><th>{{ PREV_Q_LABEL }}规模</th><th>{{ LATEST_Q_LABEL }}规模</th><th>规模变动</th><th>收益率</th><th>最大回撤</th></tr></thead>
-        <tbody>
-          {% for r in decline %}
-          <tr class="{{ 'us' if r.corp == OUR_COMPANY }}">
-            <td class="l">{{ r.name }}</td><td class="l">{{ r.corp }}</td><td class="l">{{ r.type }}</td>
-            <td class="num">{{ r.q4 }}</td><td class="num">{{ r.q1 }}</td>
-            <td class="num down">{{ "%.1f"|format(r.delta) }}</td>
-            <td class="num {{ 'up' if r.ret and r.ret>0 else 'down' }}">{{ "%.2f"|format(r.ret) if r.ret is not none else '—' }}%</td>
-            <td class="num down">{{ "%.2f"|format(r.max_dd) if r.max_dd is not none else '—' }}%</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+  <div class="box-body padded"><div id="chart-rvd" class="chart chart-lg"></div></div>
+  <div class="box-foot note">
+    <b>口径</b>：加权收益率取银河排名公司口径；加权最大回撤为公司旗下产品复权净值等权平均。每点为一公司，异色标注，点旁为公司名，悬浮显示具体数值。我司红色加粗。
   </div>
 </div>
 
