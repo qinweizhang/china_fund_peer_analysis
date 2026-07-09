@@ -58,7 +58,7 @@ function legend() {
 }
 
 /* 集中度 / 仓位 时间序列：我司高亮，其余灰阶 */
-function renderTimeSeries(elId, data, field, valueSuffix, usName) {
+function renderTimeSeries(elId, data, field, valueSuffix, usName, opts = {}) {
   const el = document.getElementById(elId);
   if (!el || !data) return;
   const corps = Object.keys(data);
@@ -75,6 +75,18 @@ function renderTimeSeries(elId, data, field, valueSuffix, usName) {
     itemStyle: { color: corp === usName ? ADLS.down : PALETTE[i % PALETTE.length] },
     emphasis: { focus: "series" },
   }));
+  // y 轴区间：opts.yMin/yMax 为固定区间（多图共用便于对比）；opts.zoomY 则按数据收紧
+  let yExtra = {};
+  if (opts.yMin != null || opts.yMax != null) {
+    yExtra = { min: opts.yMin, max: opts.yMax, scale: true };
+  } else if (opts.zoomY) {
+    const all = corps.flatMap(c => (data[c][field] || [])).filter(v => typeof v === "number" && isFinite(v));
+    if (all.length) {
+      const lo = Math.min(...all), hi = Math.max(...all);
+      const pad = Math.max((hi - lo) * 0.08, 1);
+      yExtra = { min: Math.floor(lo - pad), max: Math.ceil(hi + pad), scale: true };
+    }
+  }
   const chart = echarts.init(el, null, { renderer: "canvas" });
   chart.setOption({
     backgroundColor: "transparent",
@@ -82,7 +94,7 @@ function renderTimeSeries(elId, data, field, valueSuffix, usName) {
     tooltip: tooltip(),
     legend: legend(),
     xAxis: { type: "category", data: dates, ...axisStyle({ axisLabel: { color: ADLS.slate500, fontSize: 10, rotate: 0 } }) },
-    yAxis: { type: "value", ...axisStyle(), axisLabel: { formatter: (v) => v + (valueSuffix || "") } },
+    yAxis: { type: "value", ...axisStyle(), ...yExtra, axisLabel: { formatter: (v) => v + (valueSuffix || "") } },
     series,
   });
   window.addEventListener("resize", () => chart.resize());

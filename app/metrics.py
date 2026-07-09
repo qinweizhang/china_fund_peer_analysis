@@ -106,11 +106,33 @@ def company_overview() -> list[dict]:
             "ret_3y": ret_3y,
             "rank_3y": f"{int(rk3_rank)}/{int(tot_3y)}" if rk3_rank and tot_3y else "-",
         })
-    # 按 2026Q1 业绩降序
+    # 按最新季度业绩降序
     rows.sort(key=lambda r: r["ret_q"] if r["ret_q"] is not None else -999, reverse=True)
     for i, r in enumerate(rows, 1):
         r["seq"] = i
-    return rows
+    return rows, _overview_kpi(rows)
+
+
+def _overview_kpi(rows: list[dict]) -> dict:
+    """模块一 KPI 行：我司规模排名、规模涨幅最大、业绩夺冠 —— 全部由 rows 派生。"""
+    if not rows:
+        return {"sample": 0}
+    us = next((r for r in rows if r["is_us"]), None)
+    scale_sorted = sorted(rows, key=lambda r: r["scale_q1"] or 0, reverse=True)
+    growth = max(rows, key=lambda r: r["chg_pct"] if r["chg_pct"] is not None else -999)
+    perf = rows[0]  # rows 已按 ret_q 降序
+    return {
+        "sample": len(rows),
+        "our_rank": (scale_sorted.index(us) + 1) if us else None,
+        "our_scale": us["scale_q1"] if us else None,
+        "our_chg": us["chg_pct"] if us else None,
+        "growth_corp": growth["corp"],
+        "growth_pct": growth["chg_pct"],
+        "growth_scale": growth["scale_q1"],
+        "perf_corp": perf["corp"],
+        "perf_ret": perf["ret_q"],
+        "perf_3y": perf["ret_3y"],
+    }
 
 
 # ============================================================
@@ -618,8 +640,13 @@ def yongying_products() -> list[dict]:
 
     q4 = corp_ps[corp_ps["pub_date"] == pd.Timestamp(PREV_Q)].set_index("fund_code")["total_nav"]
     q1 = corp_ps[corp_ps["pub_date"] == pd.Timestamp(LATEST_Q)].set_index("fund_code")["total_nav"]
-    common = q1.index.intersection(q4.index)
-    delta = (q1.loc[common] - q4.loc[common])
+    # 较年初变动：年初 = 最新季度所在年的上一年 12-31；该季不在数据中时退化为最早可得季度
+    all_q = dl.quarters()
+    year_start_q = f"{int(LATEST_Q[:4]) - 1}-12-31"
+    if year_start_q not in all_q:
+        year_start_q = all_q[0] if all_q else PREV_Q
+    q0 = corp_ps[corp_ps["pub_date"] == pd.Timestamp(year_start_q)].set_index("fund_code")["total_nav"]
+    delta = q1.sub(q0, fill_value=0)  # 对齐 q1；年初不存在的基金视作从 0 增长
 
     corp_u = corp_ps.drop_duplicates("fund_code")
     name_map = corp_u.set_index("fund_code")["fund_name"].to_dict()
@@ -637,12 +664,13 @@ def yongying_products() -> list[dict]:
                 d = v / peak - 1
                 if d < max_dd: max_dd = d
             dd = max_dd
+        q4v = q4.get(fc)
         rows.append({
             "name": name_map.get(fc, ""), "code": fc,
             "estab": str(estab_map.get(fc, ""))[:10] if pd.notna(estab_map.get(fc)) else "",
             "type": pc_key_map.get(_fc_key(fc), "-"),
-            "q4": round(float(q4.loc[fc]), 1),
-            "q1": round(float(q1.loc[fc]), 1),
+            "q4": round(float(q4v), 1) if pd.notna(q4v) else None,
+            "q1": round(float(q1.get(fc)), 1) if pd.notna(q1.get(fc)) else None,
             "delta": round(float(delta.loc[fc]), 1),
             "ret": round(ret * 100, 2) if ret is not None else None,
             "dd": round(dd * 100, 2) if dd is not None else None,
@@ -679,8 +707,9 @@ def product_layout() -> dict:
 
 
 if __name__ == "__main__":
-    ov = company_overview()
+    ov, kpi = company_overview()
     print(f"overview: {len(ov)} rows; top={ov[0]['corp']} ret={ov[0]['ret_q']}")
+    print(f"kpi: {kpi}")
     bt, extra = board_table()
     print(f"board_table: {len(bt)} corps")
     tc = board_change_table()

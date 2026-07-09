@@ -22,7 +22,7 @@
 {% block content %}
 <div class="page-head">
   <h1>同业持仓及变动分析</h1>
-  <span class="lede">板块配置 · 重仓股 · 集中度与仓位（2026Q1，持仓口径取前十大重仓股加总）</span>
+  <span class="lede">板块配置 · 重仓股 · 集中度与仓位（{{ LATEST_Q_LABEL }}，持仓口径取前十大重仓股加总）</span>
 </div>
 
 {# ===== 2.1 板块配置 ===== #}
@@ -263,11 +263,16 @@
   const POS = {{ position_json|safe }};
   const US = "{{ OUR_COMPANY }}";
   const BOARDS = {{ BOARDS|tojson }};
+  // 仓位两张图共用同一 y 轴区间：上限固定 100%，下限按两张图合并数据的最小值向下取 5 的倍数
+  const _posVals = Object.values(POS.arith).concat(Object.values(POS.weighted))
+      .flatMap(d => d.values || []).filter(v => typeof v === "number" && isFinite(v));
+  const _posMin = _posVals.length ? Math.floor(Math.min(..._posVals) / 5) * 5 : 70;
+  const POS_Y = { yMin: _posMin, yMax: 100 };
   document.addEventListener("DOMContentLoaded", () => {
     renderTimeSeries("chart-top20", CONC.top20, "values", "%", US);
     renderTimeSeries("chart-top3", CONC.top3, "values", "%", US);
-    renderTimeSeries("chart-pos-w", POS.weighted, "values", "%", US);
-    renderTimeSeries("chart-pos-a", POS.arith, "values", "%", US);
+    renderTimeSeries("chart-pos-w", POS.weighted, "values", "%", US, POS_Y);
+    renderTimeSeries("chart-pos-a", POS.arith, "values", "%", US, POS_Y);
   });
 </script>
 {% endblock %}

@@ -11,7 +11,7 @@
 {% block content %}
 <div class="page-head">
   <h1>同业规模及变动分析</h1>
-  <span class="lede">公司及产品规模变动 · 永赢/大成专题（2026Q1）</span>
+  <span class="lede">公司及产品规模变动 · 永赢/大成专题（{{ LATEST_Q_LABEL }}）</span>
 </div>
 
 {# ===== 3.1 公司规模历史与拆分 ===== #}
@@ -31,7 +31,7 @@
         </tr>
         <tr>
           {% for q in scale.quarters %}<th class="c" rowspan="2">{{ q[:7] }}</th>{% endfor %}
-          <th class="c" rowspan="2">一季度变动幅度</th>
+          <th class="c" rowspan="2">{{ LATEST_Q_LABEL }}变动幅度</th>
           {% for q in scale.split_quarters %}<th class="c" colspan="3">{{ q[:7] }}</th>{% endfor %}
         </tr>
         <tr>
@@ -66,7 +66,7 @@
 
 {# ===== 散点：收益率 vs 最大回撤 ===== #}
 <div class="box">
-  <div class="box-head"><span class="title">各公司一季度加权最大回撤与收益率</span><span class="badge">3.1 · SCATTER</span></div>
+  <div class="box-head"><span class="title">各公司{{ LATEST_Q_LABEL }}加权最大回撤与收益率</span><span class="badge">3.1 · SCATTER</span></div>
   <div class="box-body padded"><div id="chart-rvd" class="chart chart-lg"></div></div>
   <div class="box-foot note"><b>口径</b>（demo 近似）：收益率取银河公司口径；最大回撤为公司旗下产品复权净值等权平均。</div>
 </div>
@@ -74,10 +74,10 @@
 {# ===== TOP10 增长 / 缩减 ===== #}
 <div class="grid grid-2">
   <div class="box">
-    <div class="box-head"><span class="title">一季度规模增长 TOP10 产品</span><span class="badge">3.1 · GROWTH</span></div>
+    <div class="box-head"><span class="title">{{ LATEST_Q_LABEL }}规模增长 TOP10 产品</span><span class="badge">3.1 · GROWTH</span></div>
     <div class="box-body">
       <table class="data">
-        <thead><tr><th class="l">基金名称</th><th class="l">公司</th><th class="l">类型</th><th>Q4规模</th><th>Q1规模</th><th>规模变动</th><th>收益率</th><th>最大回撤</th></tr></thead>
+        <thead><tr><th class="l">基金名称</th><th class="l">公司</th><th class="l">类型</th><th>{{ PREV_Q_LABEL }}规模</th><th>{{ LATEST_Q_LABEL }}规模</th><th>规模变动</th><th>收益率</th><th>最大回撤</th></tr></thead>
         <tbody>
           {% for r in growth %}
           <tr class="{{ 'us' if r.corp == OUR_COMPANY }}">
@@ -93,10 +93,10 @@
     </div>
   </div>
   <div class="box">
-    <div class="box-head"><span class="title">一季度规模缩减 TOP10 产品</span><span class="badge">3.1 · DECLINE</span></div>
+    <div class="box-head"><span class="title">{{ LATEST_Q_LABEL }}规模缩减 TOP10 产品</span><span class="badge">3.1 · DECLINE</span></div>
     <div class="box-body">
       <table class="data">
-        <thead><tr><th class="l">基金名称</th><th class="l">公司</th><th class="l">类型</th><th>Q4规模</th><th>Q1规模</th><th>规模变动</th><th>收益率</th><th>最大回撤</th></tr></thead>
+        <thead><tr><th class="l">基金名称</th><th class="l">公司</th><th class="l">类型</th><th>{{ PREV_Q_LABEL }}规模</th><th>{{ LATEST_Q_LABEL }}规模</th><th>规模变动</th><th>收益率</th><th>最大回撤</th></tr></thead>
         <tbody>
           {% for r in decline %}
           <tr class="{{ 'us' if r.corp == OUR_COMPANY }}">
@@ -118,12 +118,12 @@
   <div class="box-head"><span class="title">永赢产品规模变动及业绩情况</span><span class="badge">3.2 · 永赢</span><span class="right">规模变动较大的前 15 只</span></div>
   <div class="box-body">
     <table class="data">
-      <thead><tr><th class="l">基金名称</th><th>成立日期</th><th class="l">类型</th><th>2025Q4规模</th><th>2026Q1规模</th><th>较年初变动</th><th>2026Q1收益率</th><th>最大回撤</th></tr></thead>
+      <thead><tr><th class="l">基金名称</th><th>成立日期</th><th class="l">类型</th><th>{{ PREV_Q_LABEL }}规模</th><th>{{ LATEST_Q_LABEL }}规模</th><th>较年初变动</th><th>{{ LATEST_Q_LABEL }}收益率</th><th>最大回撤</th></tr></thead>
       <tbody>
         {% for r in yongying %}
         <tr>
           <td class="l">{{ r.name }}</td><td class="c num">{{ r.estab }}</td><td class="l">{{ r.type }}</td>
-          <td class="num">{{ r.q4 }}</td><td class="num">{{ r.q1 }}</td>
+          <td class="num">{{ r.q4 if r.q4 is not none else '—' }}</td><td class="num">{{ r.q1 if r.q1 is not none else '—' }}</td>
           <td class="num {{ 'up' if r.delta>0 else 'down' }}">{{ "%+.1f"|format(r.delta) }}</td>
           <td class="num {{ 'up' if r.ret and r.ret>0 else 'down' }}">{{ "%.2f"|format(r.ret) if r.ret is not none else '—' }}%</td>
           <td class="num down">{{ "%.2f"|format(r.dd) if r.dd is not none else '—' }}%</td>

@@ -24,11 +24,30 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("PEER_SECRET", "peer-analysis-dev-secret")
 
 
+def _q_label(qstr: str | None) -> str:
+    """'2026-03-31' -> '2026Q1'；空值返回 '—'。"""
+    if not qstr:
+        return "—"
+    try:
+        y, m, _ = qstr.split("-")
+        return f"{y}Q{(int(m) - 1) // 3 + 1}"
+    except Exception:
+        return qstr
+
+
 @app.context_processor
 def inject_globals():
+    latest = dl.latest_q()
+    prev = dl.prev_q()
+    latest_year = int(latest[:4]) if latest else None
+    ret_3y_label = f"{latest_year - 2}-{latest_year}" if latest_year else "—"
     return {
         "OUR_COMPANY": dl.OUR_COMPANY,
-        "LATEST_Q": dl.latest_q(),
+        "LATEST_Q": latest,
+        "PREV_Q": prev,
+        "LATEST_Q_LABEL": _q_label(latest),
+        "PREV_Q_LABEL": _q_label(prev),
+        "RET_3Y_LABEL": ret_3y_label,
         "BOARDS": metrics.BOARDS,
         "MARKETS": metrics.MARKETS,
         "DATASETS": dl.datasets(),
@@ -39,10 +58,12 @@ def inject_globals():
 
 @app.route("/")
 def module1():
+    rows, kpi = metrics.company_overview()
     return render_template(
         "module1.html",
         active="m1",
-        rows=metrics.company_overview(),
+        rows=rows,
+        kpi=kpi,
     )
 
 
