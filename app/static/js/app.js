@@ -12,9 +12,9 @@ const ADLS = {
 };
 
 const PALETTE = [
-  "#205781", "#4F959D", "#0F172A", "#64748B", "#94A3B8",
-  "#7c8a9b", "#3b6e8f", "#5f8b94", "#2c5f7c", "#8aa3ad",
-  "#1a4a6e", "#5d7a8c", "#3e6c7d", "#6990a0", "#456f82",
+  "#205781", "#4F959D", "#0F766E", "#7c3aed", "#db2777",
+  "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#9333ea",
+  "#b45309", "#1e40af", "#0d9488", "#be185d", "#475569",
 ];
 
 const HIGHLIGHT_US = {
@@ -71,7 +71,7 @@ function renderTimeSeries(elId, data, field, valueSuffix, usName) {
     smooth: false,
     data: data[corp][field],
     z: corp === usName ? 20 : 1,
-    lineStyle: { width: corp === usName ? 2.6 : 1, color: corp === usName ? ADLS.down : PALETTE[i % PALETTE.length] },
+    lineStyle: { width: corp === usName ? 2.8 : 1.4, color: corp === usName ? ADLS.down : PALETTE[i % PALETTE.length] },
     itemStyle: { color: corp === usName ? ADLS.down : PALETTE[i % PALETTE.length] },
     emphasis: { focus: "series" },
   }));

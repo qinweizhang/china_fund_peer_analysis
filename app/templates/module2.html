@@ -30,7 +30,7 @@
   <div class="box-head">
     <span class="title">基金公司季度板块配置</span>
     <span class="badge">2.1 · TABLE</span>
-    <span class="right">单位：占股票市值比</span>
+    <span class="right">前六大板块合计 100% · A股/港股单列</span>
   </div>
   <div class="box-body">
     <table class="data">
@@ -38,23 +38,74 @@
         <tr>
           <th class="l">基金公司</th>
           <th>TMT</th><th>金融地产</th><th>消费</th><th>新能源及制造</th><th>周期</th><th>医药</th>
-          <th>A股</th><th>港股</th>
+          <th class="sep">A股</th><th>港股</th>
         </tr>
       </thead>
       <tbody>
         {% for r in board_rows %}
         <tr class="{{ 'us' if r.is_us }}">
           <td class="l">{{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}</td>
-          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药','A股','港股'] %}
+          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药'] %}
           <td class="num {{ cell_cls(r[b], 'alloc') }}">{{ fmt_pct(r[b]) }}</td>
           {% endfor %}
+          <td class="num sep">{{ fmt_pct(r['A股']) }}</td>
+          <td class="num">{{ fmt_pct(r['港股']) }}</td>
         </tr>
         {% endfor %}
         {% for r in board_extra %}
-        <tr class="{{ 'avg' if r.corp=='平均值' else 'rank' }}">
-          <td class="l">{{ r.corp }}</td>
-          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药','A股','港股'] %}
-          <td class="num">{{ fmt_pct(r[b]) if r.corp=='平均值' else r[b] }}</td>
+        <tr class="{{ 'excl' if r.is_excl else 'avg' if r.corp=='平均值' else 'rank' }}">
+          <td class="l">{{ r.corp }}{% if r.is_excl %} <span class="tag mint">我司</span>{% endif %}</td>
+          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药'] %}
+          <td class="num">{{ fmt_pct(r[b]) if r.is_excl or r.corp=='平均值' else r[b] }}</td>
+          {% endfor %}
+          <td class="num sep">{{ fmt_pct(r['A股']) if r.is_excl or r.corp=='平均值' else r['A股'] }}</td>
+          <td class="num">{{ fmt_pct(r['港股']) if r.is_excl or r.corp=='平均值' else r['港股'] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="box-foot note">
+    <b>着色</b>：橙色 = 单一板块占比 &gt; 30%。<b>口径</b>：六板块占该公司股票市值合计（和为 100%）；A股/港股为各自市值占合计比。末行"工银瑞信（剔除行业基金）"取剔除行业基金后的持仓口径。我司两行高亮。
+  </div>
+</div>
+
+{# ===== 2.2 板块配置（A股、港股拆分） ===== #}
+<div class="box">
+  <div class="box-head">
+    <span class="title">基金公司季度板块配置（A股、港股拆分）</span>
+    <span class="badge">2.2 · TABLE</span>
+    <span class="right">各市场六板块合计 100%</span>
+  </div>
+  <div class="box-body">
+    <table class="data">
+      <thead>
+        <tr>
+          <th class="l" rowspan="2">基金公司</th>
+          <th class="grp" colspan="6">A股</th>
+          <th class="grp sep" colspan="6">港股</th>
+        </tr>
+        <tr>
+          {% for b in BOARDS %}<th>{{ b }}</th>{% endfor %}
+          {% for b in BOARDS %}<th{{ ' class="sep"' if loop.first }}>{{ b }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in bmarket_rows %}
+        <tr class="{{ 'us' if r.is_us }}">
+          <td class="l">{{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}</td>
+          {% for b in BOARDS %}<td class="num {{ cell_cls(r['A股_'~b], 'alloc') }}">{{ fmt_pct(r['A股_'~b]) }}</td>{% endfor %}
+          {% for b in BOARDS %}<td class="num {{ 'sep ' if loop.first }}{{ cell_cls(r['港股_'~b], 'alloc') }}">{{ fmt_pct(r['港股_'~b]) }}</td>{% endfor %}
+        </tr>
+        {% endfor %}
+        {% for r in bmarket_extra %}
+        <tr class="{{ 'excl' if r.is_excl else 'avg' if r.corp=='平均值' else 'rank' }}">
+          <td class="l">{{ r.corp }}{% if r.is_excl %} <span class="tag mint">我司</span>{% endif %}</td>
+          {% for b in BOARDS %}
+          <td class="num">{{ fmt_pct(r['A股_'~b]) if r.is_excl or r.corp in ['平均值','板块季度涨跌幅'] else r['A股_'~b] }}</td>
+          {% endfor %}
+          {% for b in BOARDS %}
+          <td class="num{{ ' sep' if loop.first }}">{{ fmt_pct(r['港股_'~b]) if r.is_excl or r.corp in ['平均值','板块季度涨跌幅'] else r['港股_'~b] }}</td>
           {% endfor %}
         </tr>
         {% endfor %}
@@ -62,15 +113,15 @@
     </table>
   </div>
   <div class="box-foot note">
-    <b>着色</b>：橙色 = 单一板块占比 &gt; 30%。数据来源：公司持仓明细 + 行业板块对应关系。<b>口径</b>（demo 近似）：各公司持仓个股按行业→板块映射，市值求和归一化；报告口径为“各基金前十大重仓股加总”，第二阶段对齐。
+    <b>口径</b>：A股、港股各自分母为该市场市值合计，六板块和为 100%。"板块季度涨跌幅"取行业收益率表中该板块所属行业算术平均（行业收益率未按市场拆分，A股/港股同值）。我司剔除行业基金行高亮。
   </div>
 </div>
 
-{# ===== 2.1b 板块配置变动 ===== #}
+{# ===== 2.3 板块配置变动 ===== #}
 <div class="box">
   <div class="box-head">
     <span class="title">基金公司较上季度板块变化（剔除涨跌幅）</span>
-    <span class="badge">2.1 · CHANGE</span>
+    <span class="badge">2.3 · CHANGE</span>
     <span class="right">深红=增持&gt;6% · 深绿=减持&gt;6%</span>
   </div>
   <div class="box-body">
@@ -79,16 +130,18 @@
         <tr>
           <th class="l">基金公司</th>
           <th>TMT</th><th>金融地产</th><th>消费</th><th>新能源及制造</th><th>周期</th><th>医药</th>
-          <th>A股</th><th>港股</th><th>行业调整比例</th>
+          <th class="sep">A股</th><th>港股</th><th>行业调整比例</th>
         </tr>
       </thead>
       <tbody>
         {% for r in change_rows %}
-        <tr class="{{ 'us' if r.is_us }}">
+        <tr class="{{ 'excl' if r.is_excl else 'us' if r.is_us }}">
           <td class="l">{{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}</td>
-          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药','A股','港股'] %}
+          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药'] %}
           <td class="num {{ cell_cls(r[b], 'chg') }}">{{ "%+.2f"|format(r[b]*100) }}%</td>
           {% endfor %}
+          <td class="num sep">{{ "%+.2f"|format(r['A股']*100) }}%</td>
+          <td class="num">{{ "%+.2f"|format(r['港股']*100) }}%</td>
           <td class="num">{{ fmt_pct(r.adjust) }}</td>
         </tr>
         {% endfor %}
@@ -96,15 +149,56 @@
     </table>
   </div>
   <div class="box-foot note">
-    <b>口径</b>（demo 近似）：本期占比 − 上期占比（未剔除行业涨跌幅，仅做市值占比差）；报告口径需用行业收益率剔除涨跌幅影响，第二阶段实现。
+    <b>口径</b>（demo 近似）：本期占比 − 上期占比（未剔除行业涨跌幅，仅做市值占比差）；报告口径需用行业收益率剔除涨跌幅影响，第二阶段实现。末行"工银瑞信（剔除行业基金）"取剔除行业基金后口径。
   </div>
 </div>
 
-{# ===== 2.2 重仓股 ===== #}
+{# ===== 2.4 板块配置变动（A股、港股拆分） ===== #}
+<div class="box">
+  <div class="box-head">
+    <span class="title">基金公司较上季度板块变化（A股、港股拆分）</span>
+    <span class="badge">2.4 · CHANGE</span>
+    <span class="right">各市场六板块占比变化</span>
+  </div>
+  <div class="box-body">
+    <table class="data">
+      <thead>
+        <tr>
+          <th class="l" rowspan="2">基金公司</th>
+          <th class="grp" colspan="6">A股</th>
+          <th class="grp sep" colspan="6">港股</th>
+        </tr>
+        <tr>
+          {% for b in BOARDS %}<th>{{ b }}</th>{% endfor %}
+          {% for b in BOARDS %}<th{{ ' class="sep"' if loop.first }}>{{ b }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in change_market_rows %}
+        <tr class="{{ 'excl' if r.is_excl else 'us' if r.is_us }}">
+          <td class="l">{{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}</td>
+          {% if r.corp == '板块涨跌幅' %}
+            {% for b in BOARDS %}<td class="num">{{ fmt_pct(r['A股_'~b]) }}</td>{% endfor %}
+            {% for b in BOARDS %}<td class="num{{ ' sep' if loop.first }}">{{ fmt_pct(r['港股_'~b]) }}</td>{% endfor %}
+          {% else %}
+            {% for b in BOARDS %}<td class="num {{ cell_cls(r['A股_'~b], 'chg') }}">{{ "%+.2f"|format(r['A股_'~b]*100) }}%</td>{% endfor %}
+            {% for b in BOARDS %}<td class="num{{ ' sep' if loop.first }} {{ cell_cls(r['港股_'~b], 'chg') }}">{{ "%+.2f"|format(r['港股_'~b]*100) }}%</td>{% endfor %}
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="box-foot note">
+    <b>口径</b>（demo 近似）：各市场本期占比 − 上期占比。末两行：工银瑞信（剔除行业基金）、板块涨跌幅（行业收益率算术平均，A股/港股同值）。
+  </div>
+</div>
+
+{# ===== 2.5 重仓股 ===== #}
 <div class="box">
   <div class="box-head">
     <span class="title">基金公司季度持仓前十大股票（季度收益率%）</span>
-    <span class="badge">2.2 · TOP10</span>
+    <span class="badge">2.5 · TOP10</span>
   </div>
   <div class="box-body">
     <table class="data">
@@ -117,7 +211,7 @@
       </thead>
       <tbody>
         {% for r in top10 %}
-        <tr class="{{ 'us' if r.is_us }}">
+        <tr class="{{ 'excl' if r.is_excl else 'us' if r.is_us }}">
           <td class="l">{{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}</td>
           {% for s in r.stocks %}
           <td class="hold-cell">
@@ -137,26 +231,26 @@
     </table>
   </div>
   <div class="box-foot note">
-    <b>口径</b>（demo 近似）：按公司持仓明细市值降序取前 10，收益来自个股收益率表；报告口径为“各基金前十大重仓股加总”后排序，存在差异。
+    <b>口径</b>（demo 近似）：按公司持仓明细市值降序取前 10，收益来自个股收益率表；报告口径为"各基金前十大重仓股加总"后排序，存在差异。
   </div>
 </div>
 
-{# ===== 2.3 集中度与仓位 ===== #}
+{# ===== 2.6 集中度与仓位 ===== #}
 <div class="grid grid-2">
   <div class="box">
-    <div class="box-head"><span class="title">TOP20 个股集中度变动</span><span class="badge">2.3 · CHART</span></div>
+    <div class="box-head"><span class="title">TOP20 个股集中度变动</span><span class="badge">2.6 · CHART</span></div>
     <div class="box-body padded"><div id="chart-top20" class="chart"></div></div>
   </div>
   <div class="box">
-    <div class="box-head"><span class="title">TOP3 行业集中度变动</span><span class="badge">2.3 · CHART</span></div>
+    <div class="box-head"><span class="title">TOP3 行业集中度变动</span><span class="badge">2.6 · CHART</span></div>
     <div class="box-body padded"><div id="chart-top3" class="chart"></div></div>
   </div>
   <div class="box">
-    <div class="box-head"><span class="title">规模加权仓位变动</span><span class="badge">2.3 · CHART</span></div>
+    <div class="box-head"><span class="title">规模加权仓位变动</span><span class="badge">2.6 · CHART</span></div>
     <div class="box-body padded"><div id="chart-pos-w" class="chart"></div></div>
   </div>
   <div class="box">
-    <div class="box-head"><span class="title">算术平均仓位变动</span><span class="badge">2.3 · CHART</span></div>
+    <div class="box-head"><span class="title">算术平均仓位变动</span><span class="badge">2.6 · CHART</span></div>
     <div class="box-body padded"><div id="chart-pos-a" class="chart"></div></div>
   </div>
 </div>
@@ -168,11 +262,12 @@
   const CONC = {{ concentration_json|safe }};
   const POS = {{ position_json|safe }};
   const US = "{{ OUR_COMPANY }}";
+  const BOARDS = {{ BOARDS|tojson }};
   document.addEventListener("DOMContentLoaded", () => {
     renderTimeSeries("chart-top20", CONC.top20, "values", "%", US);
     renderTimeSeries("chart-top3", CONC.top3, "values", "%", US);
-    renderTimeSeries("chart-pos-w", POS, "weighted", "%", US);
-    renderTimeSeries("chart-pos-a", POS, "arith", "%", US);
+    renderTimeSeries("chart-pos-w", POS.weighted, "values", "%", US);
+    renderTimeSeries("chart-pos-a", POS.arith, "values", "%", US);
   });
 </script>
 {% endblock %}

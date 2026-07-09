@@ -24,7 +24,23 @@
       </a>
     </nav>
     <div class="spacer"></div>
-    <div class="meta">数据截至 {{ LATEST_Q }} · 我司 {{ OUR_COMPANY }}</div>
+    <div class="tools">
+      <form class="ds-form" method="post" action="{{ url_for('switch_dataset') }}">
+        <label class="ds-label">数据集</label>
+        <select name="id" class="ds-select" onchange="this.form.submit()">
+          {% for ds in DATASETS %}
+          <option value="{{ ds.id }}" {{ 'selected' if ds.id == ACTIVE_ID or (not ACTIVE_ID and loop.first) }}>{{ ds.label }}（{{ ds.source }}）</option>
+          {% endfor %}
+        </select>
+      </form>
+      <form class="up-form" method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data">
+        <label class="up-btn" title="上传新的季度 Excel 数据文件">
+          <span>＋ 上传数据</span>
+          <input type="file" name="file" accept=".xlsx" hidden onchange="this.form.submit()">
+        </label>
+      </form>
+    </div>
+    <div class="meta">截至 {{ LATEST_Q }} · 我司 {{ OUR_COMPANY }}</div>
   </header>
 
   <main class="page">

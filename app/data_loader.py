@@ -1,18 +1,25 @@
 """Excel 数据加载与清洗层。
 
-负责将 input_data 下的 Excel 文件读入 DataFrame 并做基础规整，
-供 metrics.py 与路由层使用。读取结果在进程内缓存。
+负责将 Excel 输入文件读入 DataFrame 并做基础规整，供 metrics.py 与路由层使用。
+支持多数据集：默认目录（input_data）与上传目录（uploads）下的所有 .xlsx 均自动
+登记为可选数据集；当前激活数据集保存在 Flask session 中，按绝对路径缓存工作簿。
 """
 from __future__ import annotations
 
 import os
+import re
 from functools import lru_cache
 
 import pandas as pd
 
 # 项目根目录（app/ 的上一级）
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_PATH = os.path.join(BASE_DIR, "input_data", "竞争对手分析-基础数据20260331.xlsx")
+DATA_DIR = os.path.join(BASE_DIR, "input_data")
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+DEFAULT_FILE = "竞争对手分析-基础数据20260331.xlsx"
+DEFAULT_PATH = os.path.join(DATA_DIR, DEFAULT_FILE)
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # 报告样本：2026Q1 偏股规模前十五大基金公司 + 我司（工银瑞信已在内）
 FIFTEEN = [
@@ -36,13 +43,152 @@ def normalize_corp(name: str) -> str | None:
     return n if n in FIFTEEN_SET else None
 
 
-@lru_cache(maxsize=1)
-def _workbook() -> dict[str, pd.DataFrame]:
-    sheets: dict[str, pd.DataFrame] = pd.read_excel(DATA_PATH, sheet_name=None)
-    return sheets
+# ============================================================
+# 数据集注册与切换（支持上传新季度数据）
+# ============================================================
+
+def _label(filename: str) -> str:
+    """从文件名解析展示标签：优先识别末尾 8 位日期 20260331 -> 2026-03-31。"""
+    m = re.search(r"(20\d{2})(\d{2})(\d{2})", filename)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    return os.path.splitext(filename)[0]
 
 
-# ---- 各 sheet 的规整化访问器 ----
+def datasets() -> list[dict]:
+    """扫描默认目录与上传目录，返回全部可用数据集。
+
+    每项：{id, label, path, source}。id 取文件名（去扩展名），label 取解析后的日期。
+    """
+    out: list[dict] = []
+    for d, source in ((DATA_DIR, "默认"), (UPLOAD_DIR, "上传")):
+        if not os.path.isdir(d):
+            continue
+        for fn in sorted(os.listdir(d)):
+            if not fn.lower().endswith(".xlsx") or fn.startswith("~$"):
+                continue
+            out.append({
+                "id": os.path.splitext(fn)[0],
+                "label": _label(fn),
+                "path": os.path.join(d, fn),
+                "source": source,
+            })
+    return out
+
+
+def _find_path(dataset_id: str | None) -> str | None:
+    if not dataset_id:
+        return None
+    for ds in datasets():
+        if ds["id"] == dataset_id:
+            return ds["path"]
+    return None
+
+
+def active_path() -> str:
+    """当前激活数据集的绝对路径。无 session 或失效时回退到默认数据集。"""
+    did = None
+    try:
+        from flask import session
+        did = session.get("dataset_id")
+    except Exception:
+        did = None
+    path = _find_path(did)
+    if path:
+        return path
+    # 回退：默认目录首个，再退到 DEFAULT_PATH
+    ds = datasets()
+    return ds[0]["path"] if ds else DEFAULT_PATH
+
+
+def active_label() -> str:
+    did = None
+    try:
+        from flask import session
+        did = session.get("dataset_id")
+    except Exception:
+        did = None
+    for ds in datasets():
+        if ds["id"] == did:
+            return ds["label"]
+    ds = datasets()
+    return ds[0]["label"] if ds else "—"
+
+
+def set_active_id(dataset_id: str) -> None:
+    """设置当前激活数据集（写入 session）。"""
+    try:
+        from flask import session
+        session["dataset_id"] = dataset_id
+    except Exception:
+        pass
+
+
+def save_upload(file_storage) -> str:
+    """保存上传的 Excel 到 uploads/，返回其数据集 id（文件名去扩展名）。"""
+    filename = file_storage.filename
+    if not filename or not filename.lower().endswith(".xlsx"):
+        raise ValueError("仅支持 .xlsx 文件")
+    # 防止覆盖：重名时追加序号
+    dest = os.path.join(UPLOAD_DIR, filename)
+    if os.path.exists(dest):
+        stem, ext = os.path.splitext(filename)
+        i = 1
+        while os.path.exists(os.path.join(UPLOAD_DIR, f"{stem}_{i}{ext}")):
+            i += 1
+        filename = f"{stem}_{i}{ext}"
+        dest = os.path.join(UPLOAD_DIR, filename)
+    file_storage.save(dest)
+    return os.path.splitext(filename)[0]
+
+
+# ============================================================
+# 工作簿缓存（按绝对路径）
+# ============================================================
+
+_CACHE: dict[str, dict[str, pd.DataFrame]] = {}
+
+
+def _workbook(path: str | None = None) -> dict[str, pd.DataFrame]:
+    """读取并缓存某路径下 Excel 的全部 sheet。path 缺省取激活数据集。"""
+    p = path or active_path()
+    p = os.path.abspath(p)
+    if p not in _CACHE:
+        _CACHE[p] = pd.read_excel(p, sheet_name=None)
+    return _CACHE[p]
+
+
+def clear_cache(path: str | None = None) -> None:
+    """清除缓存（上传新数据或切换后调用）。path=None 清全部。"""
+    if path is None:
+        _CACHE.clear()
+    else:
+        _CACHE.pop(os.path.abspath(path), None)
+
+
+# ============================================================
+# 派生：可用季度、最新/上一季度（用于跨季度通用化）
+# ============================================================
+
+def quarters() -> list[str]:
+    """产品规模表中所有季末时点（升序，YYYY-MM-DD 字符串）。"""
+    qs = product_scale()["pub_date"].dt.strftime("%Y-%m-%d").unique().tolist()
+    return sorted(qs)
+
+
+def latest_q() -> str | None:
+    qs = quarters()
+    return qs[-1] if qs else None
+
+
+def prev_q() -> str | None:
+    qs = quarters()
+    return qs[-2] if len(qs) > 1 else None
+
+
+# ============================================================
+# 各 sheet 的规整化访问器
+# ============================================================
 
 def ranking() -> pd.DataFrame:
     """权益银河排名。POINTRATE 为文本百分比，需解析。"""
@@ -77,6 +223,7 @@ def product_scale() -> pd.DataFrame:
     df["total_nav"] = pd.to_numeric(df["total_nav"], errors="coerce")
     df["issue_date"] = pd.to_datetime(df["issue_date"], errors="coerce")
     df["estab_date"] = pd.to_datetime(df["estab_date"], errors="coerce")
+    df["unit_nav"] = pd.to_numeric(df["unit_nav"], errors="coerce")
     return df
 
 
@@ -167,9 +314,10 @@ def stock_balance() -> dict[str, float]:
 
 if __name__ == "__main__":
     # 自检
+    print("datasets:", [(d["id"], d["label"], d["source"]) for d in datasets()])
+    print("active:", active_label(), "->", active_path())
+    print("quarters:", quarters(), "latest:", latest_q(), "prev:", prev_q())
     print("ranking:", ranking().shape)
     print("product_scale:", product_scale().shape)
     print("holdings:", holdings().shape)
-    print("concentration corps:", concentration()["corp"].unique()[:5])
-    print("position corps:", position()["corp"].unique()[:5])
     print("board map sample:", list(industry_board_map().items())[:3])

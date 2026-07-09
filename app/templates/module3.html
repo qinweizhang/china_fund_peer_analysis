@@ -19,20 +19,25 @@
   <div class="box-head">
     <span class="title">基金公司每季度规模及规模变动拆分</span>
     <span class="badge">3.1 · TABLE</span>
-    <span class="right">单位：亿元</span>
+    <span class="right">规模单位：亿元 · 变动幅度：%</span>
   </div>
   <div class="box-body">
     <table class="data">
       <thead>
         <tr>
-          <th class="l">基金公司</th>
-          {% for q in scale.quarters %}<th>{{ q[:7] }}</th>{% endfor %}
-          <th>一季度变动幅度</th>
-          <th colspan="3" class="c">2026Q1 规模变动拆分</th>
+          <th class="l" rowspan="3">基金公司</th>
+          <th class="grp" colspan="{{ scale.quarters|length + 1 }}">规模（亿元）</th>
+          <th class="grp" colspan="{{ scale.split_quarters|length * 3 }}">规模变动拆分（近 {{ scale.split_quarters|length }} 季）</th>
         </tr>
         <tr>
-          <th colspan="{{ scale.quarters|length + 2 }}"></th>
+          {% for q in scale.quarters %}<th class="c" rowspan="2">{{ q[:7] }}</th>{% endfor %}
+          <th class="c" rowspan="2">一季度变动幅度</th>
+          {% for q in scale.split_quarters %}<th class="c" colspan="3">{{ q[:7] }}</th>{% endfor %}
+        </tr>
+        <tr>
+          {% for q in scale.split_quarters %}
           <th class="c">收益率上涨</th><th class="c">持营</th><th class="c">新发</th>
+          {% endfor %}
         </tr>
       </thead>
       <tbody>
@@ -43,16 +48,19 @@
           <td class="num">{{ r.quarters[q] if r.quarters[q] is not none else '—' }}</td>
           {% endfor %}
           <td class="num {{ 'up' if r.chg_pct > 0 else 'down' if r.chg_pct < 0 else 'flat' }}">{{ "%+.1f"|format(r.chg_pct) }}%</td>
-          <td class="num {{ 'up' if r.perf > 0 else 'down' if r.perf < 0 else 'flat' }}">{{ "%+d"|format(r.perf) }}</td>
-          <td class="num {{ 'up' if r.holding > 0 else 'down' if r.holding < 0 else 'flat' }}">{{ "%+d"|format(r.holding) }}</td>
-          <td class="num">{{ r.new_issue }}</td>
+          {% for q in scale.split_quarters %}
+          {% set s = r.splits[q] %}
+          <td class="num {{ 'up' if s.perf and s.perf > 0 else 'down' if s.perf and s.perf < 0 else 'flat' }}">{{ "%+d"|format(s.perf) if s.perf is not none else '—' }}</td>
+          <td class="num {{ 'up' if s.holding and s.holding > 0 else 'down' if s.holding and s.holding < 0 else 'flat' }}">{{ "%+d"|format(s.holding) if s.holding is not none else '—' }}</td>
+          <td class="num">{{ s.new if s.new else 0 }}</td>
+          {% endfor %}
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   <div class="box-foot note">
-    <b>口径</b>（demo 近似）：规模 = 产品规模表 TOTAL_NAV 按公司求和（亿元）；拆分同模块一。我司行高亮。
+    <b>口径</b>：规模 = 产品规模表 TOTAL_NAV 按公司求和（亿元）；规模变动拆分覆盖近五个季度，Δ=当季−上季、新发=当季发行基金当季末规模、业绩贡献=上季规模×当季收益率、持营=Δ−新发−业绩贡献。最新季度收益率取银河排名公司口径（与报告一致），历史季度用 unit_nav 基金级收益率估算。我司行高亮。
   </div>
 </div>
 

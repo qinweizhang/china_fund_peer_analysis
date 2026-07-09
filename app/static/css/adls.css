@@ -53,10 +53,10 @@ a:hover { text-decoration: underline; }
   z-index: 10;
 }
 .topbar .brand {
-  padding: 0 20px;
+  padding: 0 22px;
   display: flex;
   align-items: center;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -66,30 +66,62 @@ a:hover { text-decoration: underline; }
 .topbar .brand .sub { color: var(--slate-400); margin-left: 8px; font-weight: 600; }
 .topbar nav { display: flex; }
 .topbar nav a {
-  padding: 0 18px;
+  padding: 0 24px;
+  min-height: 52px;
   display: flex;
   align-items: center;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--slate-500);
   border-right: 1px solid var(--slate-200);
   letter-spacing: .04em;
 }
 .topbar nav a .idx {
-  color: var(--slate-400); margin-right: 6px; font-weight: 700;
+  color: var(--slate-400); margin-right: 8px; font-weight: 700; font-size: 13px;
 }
 .topbar nav a:hover { background: var(--slate-100); text-decoration: none; color: var(--slate-700); }
 .topbar nav a.active {
   color: #fff;
   background: var(--able-primary);
 }
-.topbar nav a.active .idx { color: rgba(255,255,255,.6); }
+.topbar nav a.active .idx { color: rgba(255,255,255,.7); }
 .topbar .spacer { flex: 1; }
+
+/* 右上角工具区：数据集切换 + 上传 */
+.topbar .tools {
+  display: flex; align-items: stretch; gap: 0;
+  border-left: 1px solid var(--slate-300);
+}
+.topbar .tools form { display: flex; align-items: center; }
+.topbar .tools .ds-form { padding: 0 12px; gap: 8px; border-right: 1px solid var(--slate-200); }
+.topbar .tools .ds-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--slate-400); font-weight: 700;
+}
+.topbar .tools .ds-select {
+  font-size: 12px; color: var(--slate-700);
+  background: #fff;             /* 白色 = 可编辑心智模型 */
+  border: 1px solid var(--slate-400);
+  padding: 4px 8px;
+  font-family: ui-monospace, monospace;
+  border-radius: 0;
+  cursor: pointer;
+}
+.topbar .tools .up-form { padding: 0 12px; border-right: 1px solid var(--slate-300); }
+.topbar .tools .up-btn {
+  display: inline-flex; align-items: center;
+  font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  color: #fff; background: var(--able-primary);
+  border: 1px solid var(--able-primary);
+  padding: 6px 14px; cursor: pointer;
+}
+.topbar .tools .up-btn:hover { background: var(--able-mint); border-color: var(--able-mint); }
+.topbar .tools .up-btn input { display: none; }
+
 .topbar .meta {
   padding: 0 16px;
   display: flex; align-items: center;
   font-size: 11px; color: var(--slate-400);
-  border-left: 1px solid var(--slate-300);
 }
 
 /* ===== 页面骨架 ===== */
@@ -170,6 +202,18 @@ table.data th {
 }
 table.data td.l, table.data th.l { text-align: left; }
 table.data td.c, table.data th.c { text-align: center; }
+/* 粗分隔线：板块 vs A股/港股、A股组 vs 港股组 */
+table.data th.sep, table.data td.sep { border-left: 2px solid var(--slate-500); }
+table.data tr.excl td { background: rgba(79,149,157,.10); }
+table.data tr.excl td:first-child { border-left: 2px solid var(--able-mint); }
+table.data th.grp {
+  text-align: center;
+  background: var(--slate-100);
+  border-bottom: 1px solid var(--slate-300);
+  color: var(--able-primary);
+  font-size: 11px;
+  letter-spacing: .06em;
+}
 table.data td.num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 table.data tbody tr:hover { background: var(--slate-100); }
 table.data tr.us { background: rgba(79,149,157,.08); }
