@@ -47,6 +47,7 @@ def inject_globals():
         "PREV_Q": prev,
         "LATEST_Q_LABEL": _q_label(latest),
         "PREV_Q_LABEL": _q_label(prev),
+        "LATEST_YEAR": latest_year,
         "RET_3Y_LABEL": ret_3y_label,
         "BOARDS": metrics.BOARDS,
         "MARKETS": metrics.MARKETS,

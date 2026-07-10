@@ -37,7 +37,7 @@
       <thead>
         <tr>
           <th class="l">基金公司</th>
-          <th>TMT</th><th>金融地产</th><th>消费</th><th>新能源及制造</th><th>周期</th><th>医药</th>
+          {% for b in BOARDS %}<th>{{ b }}</th>{% endfor %}
           <th class="sep">A股</th><th>港股</th>
         </tr>
       </thead>
@@ -45,7 +45,7 @@
         {% for r in board_rows %}
         <tr class="{{ 'us' if r.is_us }}">
           <td class="l">{{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}</td>
-          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药'] %}
+          {% for b in BOARDS %}
           <td class="num {{ cell_cls(r[b], 'alloc') }}">{{ fmt_pct(r[b]) }}</td>
           {% endfor %}
           <td class="num sep">{{ fmt_pct(r['A股']) }}</td>
@@ -55,7 +55,7 @@
         {% for r in board_extra %}
         <tr class="{{ 'excl' if r.is_excl else 'avg' if r.corp=='平均值' else 'rank' }}">
           <td class="l">{{ r.corp }}{% if r.is_excl %} <span class="tag mint">我司</span>{% endif %}</td>
-          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药'] %}
+          {% for b in BOARDS %}
           <td class="num">{{ fmt_pct(r[b]) if r.is_excl or r.corp=='平均值' else r[b] }}</td>
           {% endfor %}
           <td class="num sep">{{ fmt_pct(r['A股']) if r.is_excl or r.corp=='平均值' else r['A股'] }}</td>
@@ -129,7 +129,7 @@
       <thead>
         <tr>
           <th class="l">基金公司</th>
-          <th>TMT</th><th>金融地产</th><th>消费</th><th>新能源及制造</th><th>周期</th><th>医药</th>
+          {% for b in BOARDS %}<th>{{ b }}</th>{% endfor %}
           <th class="sep">A股</th><th>港股</th><th>行业调整比例</th>
         </tr>
       </thead>
@@ -137,7 +137,7 @@
         {% for r in change_rows %}
         <tr class="{{ 'excl' if r.is_excl else 'us' if r.is_us }}">
           <td class="l">{{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}</td>
-          {% for b in ['TMT','金融地产','消费','新能源及制造','周期','医药'] %}
+          {% for b in BOARDS %}
           <td class="num {{ cell_cls(r[b], 'chg') }}">{{ "%+.2f"|format(r[b]*100) }}%</td>
           {% endfor %}
           <td class="num sep">{{ "%+.2f"|format(r['A股']*100) }}%</td>

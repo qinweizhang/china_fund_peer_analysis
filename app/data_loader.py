@@ -253,6 +253,17 @@ def industry_board_map() -> dict[str, str]:
             for _, r in df.iterrows() if pd.notna(r["industry"])}
 
 
+def boards() -> list[str]:
+    """六大板块名称，按"行业板块对应关系"sheet 的出现顺序去重。"""
+    df = _workbook()["行业板块对应关系"]
+    seen: list[str] = []
+    for v in df.iloc[:, 1].dropna().astype(str):
+        v = v.strip()
+        if v and v not in seen:
+            seen.append(v)
+    return seen
+
+
 def concentration() -> pd.DataFrame:
     """集中度：前二十大个股 / 前三大行业，长表。"""
     raw = _workbook()["集中度"]
