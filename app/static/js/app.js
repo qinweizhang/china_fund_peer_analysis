@@ -104,6 +104,17 @@ function renderTimeSeries(elId, data, field, valueSuffix, usName, opts = {}) {
 function renderScatter(elId, points, usName) {
   const el = document.getElementById(elId);
   if (!el || !points) return;
+  // x/y 轴区间按数据自适应，下限 floor、上限 ceil 到 5 的倍数
+  const range5 = (vals) => {
+    const f = vals.filter(v => typeof v === "number" && isFinite(v));
+    if (!f.length) return null;
+    let lo = Math.min(...f), hi = Math.max(...f);
+    let mn = Math.floor(lo / 5) * 5, mx = Math.ceil(hi / 5) * 5;
+    if (mn === mx) { mn -= 5; mx += 5; }
+    return { min: mn, max: mx };
+  };
+  const xR = range5(points.map(p => p.dd));
+  const yR = range5(points.map(p => p.ret));
   // 每个公司一个 series，便于异色 + 图例；我司红色加粗置顶
   const series = points.map((p, i) => ({
     name: p.corp,
@@ -133,8 +144,8 @@ function renderScatter(elId, points, usName) {
       formatter: (p) => `${p.data.name}<br/>加权收益率: ${p.value[1]}%<br/>加权最大回撤: ${p.value[0]}%`,
     },
     legend: { type: "scroll", textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
-    xAxis: { type: "value", name: "加权最大回撤(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
-    yAxis: { type: "value", name: "加权收益率(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
+    xAxis: { type: "value", name: "加权最大回撤(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle(), ...(xR || {}) },
+    yAxis: { type: "value", name: "加权收益率(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle(), ...(yR || {}) },
     series,
   });
   window.addEventListener("resize", () => chart.resize());
