@@ -631,49 +631,60 @@ def product_top10() -> tuple[list[dict], list[dict]]:
 
 
 def return_vs_drawdown() -> list[dict]:
-    """各公司一季度加权收益率 vs 最大回撤散点（demo 近似）。
+    """各公司最新季 规模加权收益率 vs 规模加权最大回撤 散点。
 
-    收益率用银河排名公司口径；最大回撤用公司旗下产品复权净值等权平均。
+    口径（期初规模加权，基金级，两轴同池）：
+      权重 w_f = 该基金期初规模 = 产品规模表 PREV_Q 行的 TOTAL_NAV。
+      基金收益 ret_f = nav_末 / nav_初 − 1（最新季区间复权净值首末比）。
+      基金回撤 max_dd_f = min_t (nav_t / peak_t − 1)，peak_t 为截至 t 的历史最高。
+      公司加权收益率 ret_c = Σ(ret_f · w_f) / Σ w_f
+      公司加权回撤 dd_c    = Σ(max_dd_f · w_f) / Σ w_f
+    ret_f 与 max_dd_f 取自同一只基金同一区间序列，成分股一致；仅含期初规模>0 的产品。
     """
-    rk = dl.ranking()
     _, LATEST_Q, PREV_Q = _q()
-    ret_map = {r["corp"]: float(r["return"]) for _, r in rk[rk["end"].astype(str) == LATEST_Q].iterrows()}
     nav = dl.nav_adjusted()
-    nav_q1 = nav[(nav["pub_date"] >= PREV_Q) & (nav["pub_date"] <= LATEST_Q)]
+    nav_q1 = nav[(nav["pub_date"] >= PREV_Q) & (nav["pub_date"] <= LATEST_Q)].copy()
 
-    # 把复权净值产品映射到公司：用产品规模表（按归一化基金代码匹配）
     ps = dl.product_scale()
+    # 期初规模（PREV_Q）作为权重，按归一化基金代码索引
+    prev_nav = ps[ps["pub_date"] == pd.Timestamp(PREV_Q)].set_index("fund_code")["total_nav"]
+    fund_nav = {_fc_key(fc): float(v) for fc, v in prev_nav.items() if pd.notna(v) and v > 0}
+    # 基金→公司
     fund_corp = {_fc_key(fc): corp for fc, corp in
                  ps.drop_duplicates("fund_code").set_index("fund_code")["corp"].items()}
-
-    nav_q1 = nav_q1.copy()
     nav_q1["fc_key"] = nav_q1["fund_code"].map(_fc_key)
 
-    corp_dds = defaultdict(list)
+    corp_w = defaultdict(lambda: {"w_dd": 0.0, "w_ret": 0.0, "w": 0.0})
     for fc, sub in nav_q1.groupby("fc_key"):
         corp = fund_corp.get(fc)
         if corp not in dl.FIFTEEN_SET:
             continue
+        w = fund_nav.get(fc)
+        if not w or w <= 0:
+            continue  # 无期初规模（季内新发）不参与加权
         vals = sub.sort_values("pub_date")["nav"].values
         if len(vals) < 2:
             continue
+        # 基金级收益与回撤，取自同一序列
+        ret_f = vals[-1] / vals[0] - 1
         peak = vals[0]; max_dd = 0.0
         for v in vals:
             if v > peak: peak = v
             dd = v / peak - 1
             if dd < max_dd: max_dd = dd
-        corp_dds[corp].append(max_dd)
+        corp_w[corp]["w_ret"] += ret_f * w
+        corp_w[corp]["w_dd"] += max_dd * w
+        corp_w[corp]["w"] += w
 
     rows = []
     for corp in dl.FIFTEEN:
-        dds = corp_dds.get(corp, [])
-        ret = ret_map.get(corp)
-        if ret is None or not dds:
+        m = corp_w.get(corp)
+        if not m or m["w"] == 0:
             continue
         rows.append({
             "corp": corp, "is_us": corp == dl.OUR_COMPANY,
-            "ret": round(ret * 100, 2),
-            "dd": round(sum(dds) / len(dds) * 100, 2),
+            "ret": round(m["w_ret"] / m["w"] * 100, 2),
+            "dd": round(m["w_dd"] / m["w"] * 100, 2),
         })
     return rows
 
