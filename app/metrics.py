@@ -180,22 +180,20 @@ def _board_allocation(pub_date: str, exclude_industry: bool = False) -> pd.DataF
     口径：
     - 行业→板块严格取自"行业板块对应关系"sheet；行业为空的持仓**保留在分母**（left-join 语义），
       只是 board 为 NaN、不计入任一板块 → 六板块和 < 100%（与报告一致，未分类部分留白）。
-    - 市场依证券代码后缀：港股 = .HK / 含"(港)"；A股 = .SZ/.SH/.BJ；
-      其余(海外如 .KS/.TW 等)既非 A股也非港股，剔除不参与。
+    - 市场：港股 = .HK / 含"(港)"；其余(含 .SZ/.SH/.BJ 及海外如 .KS/.TW)→ A股。
+      即 A股 = 全部非港股（海外因无申万行业不进六大板块，但计入 A股分母，与报告口径一致）。
     """
     h = dl.holdings(exclude_industry=exclude_industry)
     h = h[h["pub_date"] == pub_date].copy()
     bmap = dl.industry_board_map()
     h["board"] = h["industry"].map(bmap)               # 行业为空 → board=NaN，保留在分母
-    def _market(sec: str) -> str | None:
+    def _market(sec: str) -> str:
         s = str(sec)
         if s.endswith(".HK") or "(港)" in s:
             return "港股"
-        if s.endswith((".SZ", ".SH", ".BJ")):
-            return "A股"
-        return None                                    # 海外等不属于 A股/港股，剔除
+        return "A股"                                    # 其余(含海外)→ A股
     h["market"] = h["sec_no"].map(_market)
-    h = h.dropna(subset=["market"])                    # 仅剔除海外；空行业保留
+    return h
     return h
 
 
@@ -228,13 +226,17 @@ def _board_row_market(alloc: pd.DataFrame, corp: str) -> dict | None:
     return row
 
 
-def board_returns() -> dict:
-    """各板块季度涨跌幅：行业收益率表中该板块所属行业的算术平均。"""
+def board_returns(market: str) -> dict:
+    """各板块季度涨跌幅(指定市场)：行业收益率表中该市场下该板块所属行业的算术平均。
+
+    market="A股" 用 CI0050* 中信A股行业；market="港股" 用 CIHK* 中信港股行业。
+    """
     bmap = dl.industry_board_map()
-    iret = dl.industry_return()
+    iret = dl.industry_return()          # {(市场, 行业名): 收益率}
     out = {}
     for b in BOARDS:
-        vals = [iret[ind] for ind, bb in bmap.items() if bb == b and ind in iret and iret[ind] is not None]
+        vals = [iret[(market, ind)] for ind, bb in bmap.items()
+                if bb == b and (market, ind) in iret and iret[(market, ind)] is not None]
         out[b] = (sum(vals) / len(vals)) if vals else None
     return out
 
@@ -299,72 +301,131 @@ def board_table_by_market(pub_date: str | None = None) -> tuple[list[dict], list
     us_excl["corp"] = "工银瑞信（剔除行业基金）"
     us_excl["is_us"] = True
     us_excl["is_excl"] = True
-    br = board_returns()
     brow = {"corp": "板块季度涨跌幅", "is_excl": False}
     for m in MARKETS:
+        br = board_returns(m)                       # A股/港股 各自的板块涨跌幅
         for b in BOARDS:
             brow[f"{m}_{b}"] = br.get(b)
     return rows, [avg, rank, us_excl, brow]
 
 
 # ---- 表 2.3：基金公司较上季度板块变化（剔除涨跌幅）----
-def _corp_group_ret(prev_c: pd.DataFrame, sret: dict, group_col: str, groups: list[str]) -> dict:
-    """公司上季各分组的收益率：组内个股收益按持仓市值加权（个股收益取自"个股收益率"sheet）。"""
+def _corp_group_ret(prev_c: pd.DataFrame, iret: dict, group_col: str, groups: list[str]) -> dict:
+    """公司上季各分组的收益率：组内个股所属行业收益率(行业收益率表, 按(市场,行业)查)的算术平均。"""
     ac = prev_c.copy()
-    ac["sret"] = ac["sec_no"].astype(str).map(sret)
+    ac["gret"] = [iret.get((str(m), str(i))) for m, i in zip(ac["market"], ac["industry"])]
     out = {}
     for g in groups:
-        sub = ac[ac[group_col] == g].dropna(subset=["sret"])
-        w = sub["pos_mkt_val"]
-        out[g] = float((w * sub["sret"]).sum() / w.sum()) if w.sum() else None
+        sub = ac[ac[group_col] == g].dropna(subset=["gret"])
+        out[g] = float(sub["gret"].mean()) if len(sub) else None
     return out
 
 
 def _active(cur_c: pd.DataFrame, prev_c: pd.DataFrame, group_col: str, groups: list[str],
-            sret: dict) -> dict | None:
-    """剔除涨跌幅的占比变化（单组维度）：
-    预期季末板块市值 = 上季板块市值 × (1 + 公司该板块收益率)；
-    预期占比 = 预期市值 / Σ预期市值；剔除涨跌幅变动 = 实际季末占比 − 预期占比。"""
+            sret: dict | None = None, gret: dict | None = None) -> dict | None:
+    """剔除涨跌幅的占比变化（单组维度）。
+
+    收益率来源：
+    - gret 提供(外部板块收益率字典, 键=组)时直接用之(2.4 用市场板块收益率 board_returns)；
+    - 否则用公司持仓个股收益加权 _corp_group_ret(2.3 板块/市场列, 已对齐报告)。
+    分母全量(含 NaN/未分类资产): exp_tot = 各组预期市值 + 其余资产(收益0)；
+    预期占比 = 预期市值 / exp_tot；剔除变动 = 实际季末占比(cv/cur_tot) − 预期占比。
+    """
     if prev_c.empty or cur_c.empty:
         return None
     prev_tot = prev_c["pos_mkt_val"].sum()
     cur_tot = cur_c["pos_mkt_val"].sum()
-    gret = _corp_group_ret(prev_c, sret, group_col, groups)
+    if prev_tot == 0 or cur_tot == 0:
+        return None
+    if gret is None:
+        gret = _corp_group_ret(prev_c, sret, group_col, groups)
     exp_tot = 0.0
     for g in groups:
         pv = prev_c[prev_c[group_col] == g]["pos_mkt_val"].sum()
         r = gret.get(g)
         exp_tot += pv * (1 + r) if r is not None else pv
+    # 其余(不在 groups 内的 NaN/未分类/海外)资产按收益0计入预期总市值
+    pv_others = prev_c[~prev_c[group_col].isin(groups)]["pos_mkt_val"].sum()
+    exp_tot += pv_others
     out = {}
     for g in groups:
         pv = prev_c[prev_c[group_col] == g]["pos_mkt_val"].sum()
         cv = cur_c[cur_c[group_col] == g]["pos_mkt_val"].sum()
         r = gret.get(g)
-        if r is not None and exp_tot:
-            exp_share = pv * (1 + r) / exp_tot
-        else:
-            exp_share = (pv / prev_tot) if prev_tot else 0
+        exp_share = (pv * (1 + r) if r is not None else pv) / exp_tot if exp_tot else 0
         out[g] = (cv / cur_tot if cur_tot else 0) - exp_share
     return out
 
 
+def _adjust_industry(cur_c: pd.DataFrame, prev_c: pd.DataFrame, iret: dict) -> float:
+    """行业调整比例：(市场,行业) 复合分组，用市场行业收益率(行业收益率表 CI0050/CIHK)剔除涨跌幅，
+    Σ|实际占比−预期占比| ÷2（换手率口径）。
+
+    分母为全量股票市值(含行业为空的资产)，避免 notna 裁剪导致占比被动放大：
+    - ct = 当期全部持仓市值；exp_tot = 上季有效行业按行业收益率再估 + 上季无行业资产(收益0)。
+    - 预期季末 (市场,行业) 市值 = 上季该组市值 × (1 + 该市场该行业收益率)；
+      预期占比 = 预期市值 / exp_tot；剔除变动 = 实际季末占比(cv/ct) − 预期占比。
+    - 无行业资产(现金/未分类/海外)变动也计入调仓(视为一个特殊"行业")。
+    A股行业与港股行业分开(复合键)，避免跨市场抵消。"""
+    pt_total = prev_c["pos_mkt_val"].sum()
+    ct = cur_c["pos_mkt_val"].sum()
+    if pt_total == 0 or ct == 0:
+        return 0.0
+    pc_valid = prev_c[prev_c["industry"].notna()].copy()
+    cc_valid = cur_c[cur_c["industry"].notna()].copy()
+    pc_valid["mi"] = pc_valid["market"] + "_" + pc_valid["industry"].astype(str)
+    cc_valid["mi"] = cc_valid["market"] + "_" + cc_valid["industry"].astype(str)
+    mi = list(set(cc_valid["mi"]) | set(pc_valid["mi"]))
+    # 预期总市值：有效行业按行业收益率再估 + 无行业资产按原值(收益0)
+    exp_tot = 0.0
+    pv_map, r_map = {}, {}
+    for i in mi:
+        m, ind = i.split("_", 1)
+        pv = pc_valid[pc_valid["mi"] == i]["pos_mkt_val"].sum()
+        r = iret.get((m, ind))
+        pv_map[i] = pv; r_map[i] = r
+        exp_tot += pv * (1 + r) if r is not None else pv
+    pv_nan = prev_c[prev_c["industry"].isna()]["pos_mkt_val"].sum()
+    exp_tot += pv_nan
+    # 有效行业的占比变动
+    s = 0.0
+    for i in mi:
+        cv = cc_valid[cc_valid["mi"] == i]["pos_mkt_val"].sum()
+        cur_sh = cv / ct
+        r = r_map[i]; pv = pv_map[i]
+        exp_sh = pv * (1 + r) / exp_tot if r is not None and exp_tot else (pv / exp_tot if exp_tot else 0)
+        s += abs(cur_sh - exp_sh)
+    # 无行业资产(现金/未分类/海外)的变动也计入调仓
+    cv_nan = cur_c[cur_c["industry"].isna()]["pos_mkt_val"].sum()
+    s += abs(cv_nan / ct - (pv_nan / exp_tot if exp_tot else 0))
+    return s / 2
+
+
 def board_change_table() -> list[dict]:
-    """六板块 + A股/港股 的剔除涨跌幅占比变化 + 行业调整比例；末行追加工银瑞信（剔除行业基金）。"""
+    """六板块 + A股/港股 的剔除涨跌幅占比变化 + 行业调整比例；末行追加工银瑞信（剔除行业基金）。
+
+    计算顺序：先在(市场,行业)层面算剔除变动(每个行业用自己的行业收益率 iret)，
+    再按 bmap 汇总(签名和)到六大板块 / A股/港股。行业涨跌幅与公司持仓无关。"""
     _, LATEST_Q, PREV_Q = _q()
     cur = _board_allocation(LATEST_Q); prev = _board_allocation(PREV_Q)
     cur_e = _board_allocation(LATEST_Q, True); prev_e = _board_allocation(PREV_Q, True)
-    sret = dl.stock_return()
+    iret = dl.industry_return()
+    bmap = dl.industry_board_map()
+    for df in (cur, prev, cur_e, prev_e):
+        df["mi"] = df["market"].astype(str) + "_" + df["industry"].astype(str)
+    gret_mi = {f"{m}_{ind}": v for (m, ind), v in iret.items() if v is not None}
+    mi_keys = sorted(set(cur["mi"].dropna()) | set(prev["mi"].dropna()))
+    board_inds = {b: [ind for ind, bb in bmap.items() if bb == b] for b in BOARDS}
 
     def _change(ca, pa, corp):
         prev_c = pa[pa["corp"] == corp]; cur_c = ca[ca["corp"] == corp]
-        ab = _active(cur_c, prev_c, "board", BOARDS, sret) or {b: 0 for b in BOARDS}
-        am = _active(cur_c, prev_c, "market", MARKETS, sret) or {m: 0 for m in MARKETS}
+        ai = _active(cur_c, prev_c, "mi", mi_keys, gret=gret_mi) or {}
         row = {"corp": corp}
         for b in BOARDS:
-            row[b] = ab[b]
-        row["adjust"] = sum(abs(ab[b]) for b in BOARDS)
+            row[b] = sum(ai.get(f"{m}_{ind}", 0) for m in MARKETS for ind in board_inds[b])
+        row["adjust"] = _adjust_industry(cur_c, prev_c, iret)
         for m in MARKETS:
-            row[m] = am[m]
+            row[m] = sum(ai.get(f"{m}_{ind}", 0) for ind in bmap.keys())
         return row
 
     rows = []
@@ -382,21 +443,26 @@ def board_change_table() -> list[dict]:
 
 # ---- 表 2.4：基金公司较上季度板块变化（A股、港股拆分）----
 def board_change_table_by_market() -> list[dict]:
-    """A股/港股各六板块的剔除涨跌幅占比变化；末两行追加 工银瑞信（剔除行业基金）/ 板块涨跌幅。"""
+    """A股/港股各六板块的剔除涨跌幅占比变化；末两行追加 工银瑞信（剔除行业基金）/ 板块涨跌幅。
+    行业层面计算: 先在(市场,行业)层面算剔除变动, 再按 bmap 汇总到(市场,板块)。"""
     _, LATEST_Q, PREV_Q = _q()
     cur = _board_allocation(LATEST_Q).copy(); prev = _board_allocation(PREV_Q).copy()
     cur_e = _board_allocation(LATEST_Q, True).copy(); prev_e = _board_allocation(PREV_Q, True).copy()
+    iret = dl.industry_return()
+    bmap = dl.industry_board_map()
     for df in (cur, prev, cur_e, prev_e):
-        df["mb"] = df["market"].astype(str) + "_" + df["board"].astype(str)
-    keys = [f"{m}_{b}" for m in MARKETS for b in BOARDS]
-    sret = dl.stock_return()
+        df["mi"] = df["market"].astype(str) + "_" + df["industry"].astype(str)
+    gret_mi = {f"{m}_{ind}": v for (m, ind), v in iret.items() if v is not None}
+    mi_keys = sorted(set(cur["mi"].dropna()) | set(prev["mi"].dropna()))
+    board_inds = {b: [ind for ind, bb in bmap.items() if bb == b] for b in BOARDS}
 
     def _change(ca, pa, corp):
         prev_c = pa[pa["corp"] == corp]; cur_c = ca[ca["corp"] == corp]
-        a = _active(cur_c, prev_c, "mb", keys, sret) or {k: 0 for k in keys}
+        ai = _active(cur_c, prev_c, "mi", mi_keys, gret=gret_mi) or {}
         row = {"corp": corp}
-        for k in keys:
-            row[k] = a.get(k, 0)
+        for m in MARKETS:
+            for b in BOARDS:
+                row[f"{m}_{b}"] = sum(ai.get(f"{m}_{ind}", 0) for ind in board_inds[b])
         return row
 
     rows = []
@@ -409,9 +475,9 @@ def board_change_table_by_market() -> list[dict]:
     us_excl["is_us"] = True
     us_excl["is_excl"] = True
     rows.append(us_excl)
-    br = board_returns()
     brow = {"corp": "板块涨跌幅", "is_excl": False}
     for m in MARKETS:
+        br = board_returns(m)                         # A股/港股 各自的板块涨跌幅
         for b in BOARDS:
             brow[f"{m}_{b}"] = br.get(b)
     rows.append(brow)
@@ -509,50 +575,59 @@ def _fund_returns() -> tuple[pd.DataFrame, pd.DataFrame]:
     return ret_fund, scale_fund
 
 
-def _perf_fundlevel(corp, prev_ts, q_ts, ret_fund, scale_fund, corp_of_fund) -> float | None:
-    """基金级业绩贡献：Σ_f (上季规模_f × 当季收益率_f)，仅限该公司旗下基金。"""
-    if q_ts not in ret_fund.columns or prev_ts not in scale_fund.columns:
-        return None
-    funds = [fc for fc in scale_fund.index if corp_of_fund.get(fc) == corp]
-    if not funds:
-        return None
-    sp = scale_fund.loc[funds, prev_ts].dropna()
-    r = ret_fund.loc[sp.index, q_ts].dropna() if q_ts in ret_fund.columns else None
-    if r is None:
-        return None
-    common = sp.index.intersection(r.index)
-    if not len(common):
-        return None
-    return float((sp.loc[common] * r.loc[common]).sum())
-
-
 def scale_history() -> dict:
     """各公司逐季规模（亿元）+ 近五季度规模变动拆分（收益率上涨/持营/新发）。
 
-    口径：
-    - 规模 = 产品规模表 TOTAL_NAV 按公司求和（亿元）。
-    - 拆分覆盖近 5 个季度。Δ = 当季 − 上季；新发 = 当季发行基金当季末规模；
-      业绩贡献 = 上季规模 × 当季收益率；持营 = Δ − 新发 − 业绩贡献。
-    - 最新季度收益率取银河排名公司口径（与报告一致）；历史季度用 unit_nav 基金级收益率估算。
+    口径（同表 1.1）：
+    - 规模 = 产品规模表 TOTAL_NAV 按公司求和（亿元）。季初 = 上一季度末。
+    - 收益率上涨（业绩贡献）= Σ_f [季初规模_f × 涨跌幅_f]，涨跌幅优先用复权净值
+      FUQUAN_UNIT_NAV 的(季末−季初)/季初（仅最新季可得），缺失回退单位净值 UNIT_NAV。
+    - 新发 = 最新季在、上一季不在的基金，取其季末 TOTAL_NAV。
+    - 持营 = Δ − 收益率上涨 − 新发（倒挤）。Δ = 季末 − 季初。
     """
     ps = dl.product_scale()
     all_q, LATEST_Q, PREV_Q = _q()
     split_qs = all_q[-5:]
     scale = ps.groupby(["corp", "pub_date"])["total_nav"].sum().unstack("pub_date")
-    ret_fund, scale_fund = _fund_returns()
+    ret_fund, scale_fund = _fund_returns()          # unit_nav pct_change, total_nav pivot
     corp_of_fund = ps.drop_duplicates("fund_code").set_index("fund_code")["corp"].to_dict()
-    rk = dl.ranking()
-    latest_ret = {r["corp"]: float(r["return"]) for _, r in rk[rk["end"].astype(str) == LATEST_Q].iterrows()}
+    # 复权净值涨跌幅（仅最新季，nav_adjusted [PREV_Q, LATEST_Q]）
+    fuquan_ret: dict[str, float] = {}
+    nav = dl.nav_adjusted()
+    nav_q = nav[(nav["pub_date"] >= PREV_Q) & (nav["pub_date"] <= LATEST_Q)].copy()
+    nav_q["fc_key"] = nav_q["fund_code"].map(_fc_key)
+    for fc, sub in nav_q.groupby("fc_key"):
+        vals = sub.sort_values("pub_date")["nav"].values
+        if len(vals) >= 2 and vals[0] > 0:
+            fuquan_ret[fc] = float(vals[-1] / vals[0] - 1)
 
-    # 新发规模：发行日期落在该季的基金，规模取该季末
-    psi = ps.dropna(subset=["issue_date"]).copy()
-    psi["issue_q"] = pd.PeriodIndex(psi["issue_date"], freq="Q")
-    new_issue: dict[tuple[str, str], float] = {}
-    for qstr in split_qs:
-        per = pd.Period(qstr, freq="Q")
-        sub_q = psi[(psi["issue_q"] == per) & (psi["pub_date"] == pd.Timestamp(qstr))]
-        for corp, v in sub_q.groupby("corp")["total_nav"].sum().items():
-            new_issue[(corp, qstr)] = float(v)
+    def _perf(corp, prev_ts, q_ts, is_latest):
+        """Σ_f 季初规模 × 涨跌幅；涨跌幅 fuquan优先(仅latest)、回退 unit_nav。"""
+        if prev_ts not in scale_fund.columns or q_ts not in ret_fund.columns:
+            return None
+        funds = [fc for fc in scale_fund.index if corp_of_fund.get(fc) == corp]
+        sp = scale_fund.loc[funds, prev_ts].dropna()
+        if sp.empty:
+            return None
+        r_unit = ret_fund.loc[sp.index, q_ts].dropna()
+        perf, has = 0.0, False
+        for fc in sp.index:
+            nv = sp.loc[fc]
+            fr = fuquan_ret.get(_fc_key(fc)) if is_latest else None
+            if fr is None:
+                fr = r_unit.get(fc)
+            if fr is not None and pd.notna(fr) and pd.notna(nv):
+                perf += float(nv) * float(fr)
+                has = True
+        return perf if has else None
+
+    def _new(corp, prev_ts, q_ts):
+        """新发：最新季在、上一季不在的基金，取其季末规模。"""
+        funds = [fc for fc in scale_fund.index if corp_of_fund.get(fc) == corp]
+        prev_f = set(scale_fund.loc[funds, prev_ts].dropna().index) if prev_ts in scale_fund.columns else set()
+        cur_f = set(scale_fund.loc[funds, q_ts].dropna().index) if q_ts in scale_fund.columns else set()
+        new_f = list(cur_f - prev_f)
+        return float(scale_fund.loc[new_f, q_ts].sum()) if new_f else 0.0
 
     rows = []
     for corp in dl.FIFTEEN:
@@ -576,16 +651,13 @@ def scale_history() -> dict:
             pstr = all_q[all_q.index(qstr) - 1]
             s_q = q_series.get(qstr)
             s_p = q_series.get(pstr)
-            new = new_issue.get((corp, qstr), 0.0)
+            is_latest = (qstr == LATEST_Q)
+            new = _new(corp, pd.Timestamp(pstr), pd.Timestamp(qstr))
             if s_q is None or s_p is None:
                 splits[qstr] = {"perf": None, "holding": None, "new": round(new)}
                 continue
             delta = s_q - s_p
-            if qstr == LATEST_Q and corp in latest_ret:
-                perf = s_p * latest_ret[corp]
-            else:
-                perf = _perf_fundlevel(corp, pd.Timestamp(pstr), pd.Timestamp(qstr),
-                                       ret_fund, scale_fund, corp_of_fund)
+            perf = _perf(corp, pd.Timestamp(pstr), pd.Timestamp(qstr), is_latest)
             if perf is None:
                 splits[qstr] = {"perf": None, "holding": None, "new": round(new)}
                 continue
@@ -732,10 +804,8 @@ def return_vs_drawdown() -> list[dict]:
     nav_q1 = nav[(nav["pub_date"] >= PREV_Q) & (nav["pub_date"] <= LATEST_Q)].copy()
 
     ps = dl.product_scale()
-    # 期初规模（PREV_Q）作为权重，按归一化基金代码索引
     prev_nav = ps[ps["pub_date"] == pd.Timestamp(PREV_Q)].set_index("fund_code")["total_nav"]
     fund_nav = {_fc_key(fc): float(v) for fc, v in prev_nav.items() if pd.notna(v) and v > 0}
-    # 基金→公司
     fund_corp = {_fc_key(fc): corp for fc, corp in
                  ps.drop_duplicates("fund_code").set_index("fund_code")["corp"].items()}
     nav_q1["fc_key"] = nav_q1["fund_code"].map(_fc_key)
@@ -747,11 +817,10 @@ def return_vs_drawdown() -> list[dict]:
             continue
         w = fund_nav.get(fc)
         if not w or w <= 0:
-            continue  # 无期初规模（季内新发）不参与加权
+            continue
         vals = sub.sort_values("pub_date")["nav"].values
         if len(vals) < 2:
             continue
-        # 基金级收益与回撤，取自同一序列
         ret_f = vals[-1] / vals[0] - 1
         peak = vals[0]; max_dd = 0.0
         for v in vals:
@@ -878,3 +947,189 @@ if __name__ == "__main__":
     print(f"yongying={len(yy)}")
     pl = product_layout()
     print(f"layout: 永赢 types={len(pl['永赢']['types'])}, 工银 types={len(pl['工银瑞信']['types'])}")
+
+
+# ============================================================
+# 模块三 3.4：公司通用分析模板（General Template）
+# ============================================================
+
+def company_profile(corp: str) -> dict:
+    """3.4 公司通用分析（本季度）。"""
+    ps = dl.product_scale()
+    pc = dl.post_classify()
+    nav = dl.nav_adjusted()
+    _, LATEST_Q, PREV_Q = _q()
+    return _company_profile_internal(corp, ps, pc, nav, LATEST_Q, PREV_Q)
+
+
+def _company_profile_internal(corp, ps, pc, nav, LATEST_Q, PREV_Q) -> dict:
+    """公司通用分析内部实现，供 company_profile 和工银瑞信对比调用。"""
+    sub = ps[(ps["corp"] == corp) & (ps["pub_date"] == pd.Timestamp(LATEST_Q))].copy()
+    if sub.empty:
+        return {"corp": corp, "total": 0}
+
+    total = float(sub["total_nav"].sum())
+    sub_q4 = ps[(ps["corp"] == corp) & (ps["pub_date"] == pd.Timestamp(PREV_Q))].copy()
+
+    # 事后分类映射
+    pc_latest = {_fc_key(k): v for k, v in
+                 pc.sort_values("pub_date").groupby("fund_code").last()["industries_name"].items()}
+
+    # ===== 板块A：产品规模画像 =====
+    top = sub.sort_values("total_nav", ascending=False).head(15)
+    top_products = [{
+        "name": r["fund_name"], "code": str(r["fund_code"]),
+        "scale": round(float(r["total_nav"]), 2),
+        "pct": round(float(r["total_nav"]) / total * 100, 2) if total else 0,
+    } for _, r in top.iterrows()]
+
+    sorted_scales = sub.sort_values("total_nav", ascending=False)["total_nav"].tolist()
+    def cr(n):
+        return round(sum(sorted_scales[:n]) / total * 100, 1) if total and len(sorted_scales) >= n else None
+    concentration = {"cr1": cr(1), "cr5": cr(5), "cr10": cr(10),
+                     "product_count": len(sub), "total": round(total, 2)}
+
+    sub["pc_key"] = sub["fund_code"].map(_fc_key)
+    sub["ptype"] = sub["pc_key"].map(pc_latest)
+    grp = sub.dropna(subset=["ptype"]).groupby("ptype")["total_nav"].sum().sort_values(ascending=False)
+    type_composition = [{
+        "type": t, "scale": round(float(v), 2),
+        "pct": round(float(v) / total * 100, 2) if total else 0,
+    } for t, v in grp.items()]
+
+    # ===== 板块B：产品增长来源 =====
+    q4_map = sub_q4.set_index("fund_code")["total_nav"]
+    sub["q4_scale"] = sub["fund_code"].map(q4_map).fillna(0)
+    sub["delta"] = sub["total_nav"] - sub["q4_scale"]
+    sub["delta_pct"] = sub.apply(
+        lambda r: round(float(r["delta"]) / r["q4_scale"] * 100, 2) if r["q4_scale"] and r["q4_scale"] > 0 else None, axis=1)
+
+    # 复权净值算收益率和最大回撤（最新季区间）
+    nav_q = nav[(nav["pub_date"] >= PREV_Q) & (nav["pub_date"] <= LATEST_Q)].copy()
+    nav_q["fc_key"] = nav_q["fund_code"].map(_fc_key)
+    fund_metrics = {}
+    for fc, s in nav_q.groupby("fc_key"):
+        vals = s.sort_values("pub_date")["nav"].values
+        if len(vals) >= 2 and vals[0] > 0:
+            ret = float(vals[-1] / vals[0] - 1)
+            peak = vals[0]; max_dd = 0.0
+            for v in vals:
+                if v > peak: peak = v
+                dd = v / peak - 1
+                if dd < max_dd: max_dd = dd
+            fund_metrics[fc] = {"ret": ret, "dd": max_dd}
+    sub["ret"] = sub["fund_code"].map(_fc_key).map(lambda k: fund_metrics.get(k, {}).get("ret"))
+    sub["dd"] = sub["fund_code"].map(_fc_key).map(lambda k: fund_metrics.get(k, {}).get("dd"))
+
+    growth = sub[sub["q4_scale"] > 0].sort_values("delta", ascending=False).head(10)
+    def _prod_row(r):
+        return {
+            "name": r["fund_name"], "corp": corp,
+            "scale": round(float(r["total_nav"]), 2),
+            "q4": round(float(r["q4_scale"]), 2),
+            "delta": round(float(r["delta"]), 2),
+            "delta_pct": float(r["delta_pct"]) if pd.notna(r["delta_pct"]) else None,
+            "ret": round(float(r["ret"]) * 100, 2) if pd.notna(r["ret"]) else None,
+        }
+    growth_products = [_prod_row(r) for _, r in growth.iterrows()]
+
+    scatter_data = sub[(sub["q4_scale"] > 0) & sub["ret"].notna() & sub["dd"].notna()][["fund_name", "ret", "dd"]].copy()
+    scatter_points = [{"name": r["fund_name"],
+                       "ret": round(float(r["ret"]) * 100, 2),
+                       "dd": round(float(r["dd"]) * 100, 2)}
+                      for _, r in scatter_data.iterrows()]
+
+    # ===== 板块C：产品布局分析 =====
+    corp_all_q = ps[ps["corp"] == corp].copy()
+    corp_all_q["pc_key"] = corp_all_q["fund_code"].map(_fc_key)
+    corp_all_q["ptype"] = corp_all_q["pc_key"].map(pc_latest)
+    corp_all_q = corp_all_q.dropna(subset=["ptype"])
+    layout_pivot = corp_all_q.groupby(["pub_date", "ptype"])["total_nav"].sum().unstack("ptype").fillna(0)
+    layout_types = layout_pivot.sum().sort_values(ascending=False).index.tolist()
+    layout = {
+        "quarters": [str(d.date()) for d in layout_pivot.index],
+        "types": layout_types,
+        "series": {t: [round(float(v), 2) for v in layout_pivot[t]] for t in layout_types},
+    }
+    # 类型变动明细表
+    type_change = []
+    for t in layout_types:
+        q4_val = layout_pivot[t].iloc[-2] if len(layout_pivot) >= 2 else 0
+        q1_val = layout_pivot[t].iloc[-1]
+        delta = q1_val - q4_val
+        type_change.append({
+            "type": t, "q4": round(float(q4_val), 2), "q1": round(float(q1_val), 2),
+            "delta": round(float(delta), 2),
+            "pct": round(float(delta / q4_val * 100), 2) if q4_val and q4_val > 0 else None,
+        })
+
+    # ===== 板块D：产品特征分析 =====
+    sub["estab_years"] = sub.apply(
+        lambda r: round((pd.Timestamp(LATEST_Q) - r["estab_date"]).days / 365.25, 1)
+        if pd.notna(r["estab_date"]) else None, axis=1)
+    sub["ptype_short"] = sub["ptype"]
+    scatter_age = sub[sub["estab_years"].notna()][["fund_name", "estab_years", "total_nav", "ptype_short"]].copy()
+    scatter_age_points = [{"name": r["fund_name"], "years": float(r["estab_years"]),
+                           "scale": round(float(r["total_nav"]), 2), "type": r["ptype_short"]}
+                          for _, r in scatter_age.iterrows()]
+
+    bins = [0, 10, 50, 100, 1e9]
+    bin_labels = ["<10亿", "10-50亿", "50-100亿", ">100亿"]
+    sub["bin"] = pd.cut(sub["total_nav"], bins=bins, labels=bin_labels, right=True, include_lowest=True)
+    hist = sub.groupby("bin", observed=False).size().reindex(bin_labels, fill_value=0)
+    histogram = [{"label": l, "count": int(hist[l])} for l in bin_labels]
+
+    # ===== 板块E：总结 =====
+    insights = []
+    # 1. 产品结构
+    cr5 = concentration["cr5"]
+    if cr5 and cr5 > 50:
+        insights.append(f"CR5={cr5}%，高度依赖前5大产品，产品集中度高")
+    elif cr5 and cr5 < 30:
+        insights.append(f"CR5={cr5}%，产品分散均衡，无单一依赖")
+    else:
+        insights.append(f"CR5={cr5}%，头部产品有一定集中度")
+    # 2. 增长来源
+    if growth_products:
+        g0 = growth_products[0]
+        driver = "业绩驱动" if g0["ret"] and g0["ret"] > 0 else "非业绩驱动"
+        insights.append(f"增长TOP1：{g0['name']}（+{g0['delta']}亿），属{driver}")
+    # 3. 布局方向
+    if type_change:
+        tc_sorted = sorted(type_change, key=lambda x: x["delta"], reverse=True)
+        biggest = tc_sorted[0]
+        insights.append(f"布局变化最大：{biggest['type']}（变动{biggest['delta']:+.1f}亿）")
+    # 4. 增长持续性
+    big_count = sum(1 for s in sorted_scales if s and s > 50)
+    insights.append(f">50亿产品{big_count}只，腰部力量{'强' if big_count >= 3 else '弱'}")
+
+    # 工银瑞信对比数据（始终显示）
+    us_data = {}
+    if corp != dl.OUR_COMPANY:
+        us_data = _company_profile_internal(dl.OUR_COMPANY, ps, pc, nav, LATEST_Q, PREV_Q)
+
+    return {
+        "corp": corp,
+        "total": round(total, 2),
+        "product_count": len(sub),
+        "latest_q_label": LATEST_Q[:7],
+        # 板块A
+        "top_products": top_products,
+        "concentration": concentration,
+        "type_composition": type_composition,
+        # 板块B
+        "growth_products": growth_products,
+        "scatter_points": scatter_points,
+        # 板块C
+        "layout": layout,
+        "type_change": type_change,
+        # 板块D
+        "scatter_age_points": scatter_age_points,
+        "histogram": histogram,
+        # 板块E
+        "insights": insights,
+        # 工银瑞信对比
+        "us_type_composition": us_data.get("type_composition") if us_data else type_composition,
+        "us_scatter_points": us_data.get("scatter_points") if us_data else scatter_points,
+        "us_layout": us_data.get("layout") if us_data else layout,
+    }

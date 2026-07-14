@@ -16,7 +16,7 @@ import pandas as pd
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "input_data")
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-DEFAULT_FILE = "竞争对手分析-基础数据20260331.xlsx"
+DEFAULT_FILE = "2副本竞争对手分析-基础数据20260331.xlsx"
 DEFAULT_PATH = os.path.join(DATA_DIR, DEFAULT_FILE)
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -234,6 +234,39 @@ def post_classify() -> pd.DataFrame:
     return df
 
 
+# 空 industry 的港股/特殊股手动补录申万一级行业（数据源 S_I_NAME1 缺失），用于行业调整比例等口径
+# 海外/退市/不明确（000660.KS、2330.TW、2788.HK、2698.HK、920045.BJ）保留 NaN
+_SEC_INDUSTRY_OVERRIDE = {
+    "1179.HK": "消费者服务",      # 华住集团-S（酒店）
+    "2259.HK": "有色金属",        # 紫金黄金国际
+    "2513.HK": "计算机",          # 智谱（AI）
+    "688796.SH": "医药",          # 百奥赛图
+    "2315.HK": "医药",            # 百奥赛图-B
+    "0100.HK": "计算机",          # MINIMAX-W（AI）
+    "9911.HK": "传媒",            # 赤子城科技
+    "9999.HK": "传媒",            # 网易
+    "3858.HK": "有色金属",        # 佳鑫国际资源
+    "6082.HK": "电子",            # 壁仞科技（GPU）
+    "3696.HK": "医药",            # 英矽智能（AI制药）
+    "1133.HK": "电力设备及新能源",  # 哈尔滨电气
+    "2590.HK": "机械",            # 极智嘉-W（机器人）
+    "2696.HK": "医药",            # 复宏汉霖
+    "6938.HK": "医药",            # 瑞博生物-B
+    "1768.HK": "食品饮料",        # 鸣鸣很忙（零食）
+    "3330.HK": "有色金属",        # 灵宝黄金
+    "9888.HK": "传媒",            # 百度集团-SW
+    "9903.HK": "电子",            # 天数智芯（AI芯片）
+    "2595.HK": "医药",            # 劲方医药-B
+    "1651.HK": "机械",            # 津上机床中国
+    "1672.HK": "医药",            # 歌礼制药-B
+    "2643.HK": "消费者服务",      # 曹操出行
+    "1617.HK": "通信",            # 南方通信
+    "2383.TW": "传媒",            # TOM集团
+    "2256.HK": "医药",            # 和誉-B
+    "9961.HK": "消费者服务",      # 携程集团-S
+}
+
+
 def holdings(exclude_industry: bool = False) -> pd.DataFrame:
     """公司持仓明细（或剔除行业基金版本）。"""
     sheet = "公司明细剔除行业基金" if exclude_industry else "公司持仓明细"
@@ -307,12 +340,22 @@ def stock_return() -> dict[str, float]:
     return dict(zip(df["sec_no"].astype(str), df["return_"]))
 
 
-def industry_return() -> dict[str, float]:
-    """行业收益率 -> dict[index_name] = return。"""
+def industry_return() -> dict[tuple[str, str], float]:
+    """行业收益率 -> {(市场, 行业名): 收益率}。
+
+    市场由 INDEX_CODE 前缀判定：CI0050* 为 A股(中信A股行业)，CIHK* 为 港股(中信港股行业)。
+    同名行业在 A股/港股 各有一条，故用 (市场, 行业名) 复合键避免后者覆盖前者。
+    """
     df = _workbook()["行业收益率"].copy()
     df.columns = ["index_code", "index_name", "return_"]
     df["return_"] = pd.to_numeric(df["return_"], errors="coerce")
-    return dict(zip(df["index_name"].astype(str), df["return_"]))
+    out: dict[tuple[str, str], float] = {}
+    for _, r in df.iterrows():
+        code = str(r["index_code"])
+        market = "A股" if code.startswith("CI005") else "港股"
+        if pd.notna(r["return_"]):
+            out[(market, str(r["index_name"]))] = float(r["return_"])
+    return out
 
 
 def stock_balance() -> dict[str, float]:

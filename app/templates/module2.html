@@ -87,7 +87,7 @@
         </tr>
         <tr>
           {% for b in BOARDS %}<th>{{ b }}</th>{% endfor %}
-          {% for b in BOARDS %}<th{{ ' class="sep"' if loop.first }}>{{ b }}</th>{% endfor %}
+          {% for b in BOARDS %}<th class="{{ 'sep' if loop.first }}">{{ b }}</th>{% endfor %}
         </tr>
       </thead>
       <tbody>
@@ -170,7 +170,7 @@
         </tr>
         <tr>
           {% for b in BOARDS %}<th>{{ b }}</th>{% endfor %}
-          {% for b in BOARDS %}<th{{ ' class="sep"' if loop.first }}>{{ b }}</th>{% endfor %}
+          {% for b in BOARDS %}<th class="{{ 'sep' if loop.first }}">{{ b }}</th>{% endfor %}
         </tr>
       </thead>
       <tbody>

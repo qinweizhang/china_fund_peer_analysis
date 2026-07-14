@@ -51,6 +51,7 @@ def inject_globals():
         "RET_3Y_LABEL": ret_3y_label,
         "BOARDS": metrics.BOARDS,
         "MARKETS": metrics.MARKETS,
+        "CORPS": dl.FIFTEEN,
         "DATASETS": dl.datasets(),
         "ACTIVE_LABEL": dl.active_label(),
         "ACTIVE_ID": session.get("dataset_id"),
@@ -93,6 +94,8 @@ def module2():
 @app.route("/scale")
 def module3():
     growth, decline = metrics.product_top10()
+    corp = request.args.get("corp") or dl.OUR_COMPANY
+    profile = metrics.company_profile(corp)
     return render_template(
         "module3.html",
         active="m3",
@@ -104,6 +107,8 @@ def module3():
         layout_json=json.dumps(metrics.product_layout(), ensure_ascii=False),
         scale_bin_json=json.dumps(metrics.scale_bin_chart(), ensure_ascii=False),
         type_change_json=json.dumps(metrics.type_scale_change(), ensure_ascii=False),
+        profile_json=json.dumps(profile, ensure_ascii=False),
+        selected_corp=corp,
     )
 
 
@@ -131,6 +136,13 @@ def upload():
     except ValueError as e:
         return f"上传失败：{e}", 400
     return redirect(request.referrer or url_for("module1"))
+
+
+@app.route("/api/company/<corp>")
+def api_company(corp):
+    """公司通用分析 API：返回选中公司的产品规模画像数据。"""
+    from flask import jsonify
+    return jsonify(metrics.company_profile(corp))
 
 
 if __name__ == "__main__":

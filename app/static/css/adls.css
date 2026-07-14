@@ -12,8 +12,8 @@
   --slate-600: #475569;
   --slate-700: #334155;
   --slate-900: #0F172A;
-  --up: #10b981;        /* A股：红跌绿涨 */
-  --down: #ef4444;
+  --up: #ef4444;        /* A股：红涨绿跌 */
+  --down: #10b981;
   --warn: #f59e0b;
   --radius: 0;
 }
@@ -236,7 +236,7 @@ table.data tr.section td {
 .flat { color: var(--slate-400); }
 
 /* 板块配置热力（红=靠前/超配 绿=靠后/低配） */
-td.cell-strong { color: var(--down); font-weight: 700; }      /* >30% */
+td.cell-strong { color: var(--up); font-weight: 700; }        /* >30% 红字高亮 */
 td.cell-over { background: rgba(239,68,68,.10); }
 td.cell-under { background: rgba(16,185,129,.10); }
 td.cell-pos-strong { background: rgba(239,68,68,.22); }   /* 增持>6% */
