@@ -112,6 +112,10 @@ function renderProfile(htmlId, data) {
         <div class="box-body padded"><div id="cp-donut" class="chart chart-lg"></div></div>
       </div>
     </div>
+    ${data.ai_pa ? `<div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块A 产品规模画像</div>
+      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pa}</div>
+    </div>` : ''}
 
     <div style="margin-bottom:16px;padding:8px 12px;background:var(--slate-100);border:1px solid var(--slate-300);">
       <span style="font-size:14px;font-weight:700;color:var(--able-primary);">板块 B · 产品增长来源</span>
@@ -128,6 +132,10 @@ function renderProfile(htmlId, data) {
       <div class="box-head"><span class="title">收益率 vs 最大回撤散点</span><span class="badge">B · SCATTER</span><span class="right">x=最大回撤 · y=收益率</span></div>
       <div class="box-body padded"><div id="cp-growth-scatter" class="chart chart-lg"></div></div>
     </div>
+    ${data.ai_pb ? `<div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块B 产品增长来源</div>
+      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pb}</div>
+    </div>` : ''}
 
     <div style="margin-bottom:16px;padding:8px 12px;background:var(--slate-100);border:1px solid var(--slate-300);">
       <span style="font-size:14px;font-weight:700;color:var(--able-primary);">板块 C · 产品布局分析</span>
@@ -150,6 +158,10 @@ function renderProfile(htmlId, data) {
         <tbody>${typeChangeHtml}</tbody></table>
       </div>
     </div>
+    ${data.ai_pc ? `<div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块C 产品布局分析</div>
+      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pc}</div>
+    </div>` : ''}
 
     <div style="margin-bottom:16px;padding:8px 12px;background:var(--slate-100);border:1px solid var(--slate-300);">
       <span style="font-size:14px;font-weight:700;color:var(--able-primary);">板块 D · 产品特征分析</span>
@@ -165,6 +177,10 @@ function renderProfile(htmlId, data) {
         <div class="box-body padded"><div id="cp-hist" class="chart chart-lg"></div></div>
       </div>
     </div>
+    ${data.ai_pd ? `<div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块D 产品特征分析</div>
+      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pd}</div>
+    </div>` : ''}
 
     <div style="margin-bottom:12px;padding:8px 12px;background:var(--slate-100);border:1px solid var(--slate-300);">
       <span style="font-size:14px;font-weight:700;color:var(--able-primary);">板块 E · 核心结论</span>
@@ -180,22 +196,6 @@ function renderProfile(htmlId, data) {
         ).join('')}
       </div>
     </div>
-    ${data.ai_pa ? `<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块A 产品规模画像</div>
-      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pa}</div>
-    </div>` : ''}
-    ${data.ai_pb ? `<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块B 产品增长来源</div>
-      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pb}</div>
-    </div>` : ''}
-    ${data.ai_pc ? `<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块C 产品布局分析</div>
-      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pc}</div>
-    </div>` : ''}
-    ${data.ai_pd ? `<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块D 产品特征分析</div>
-      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pd}</div>
-    </div>` : ''}
   `;
   // 渲染图表
   renderProductBar("cp-bar", data);

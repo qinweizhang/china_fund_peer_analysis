@@ -115,10 +115,10 @@ def generate_analysis(chart_type: str, data: dict, context: dict | None = None) 
     返回：
         分析文字（2-3 段专业报告语言）
     """
-    # 1. 检查缓存
+    # 1. 检查缓存（跳过失败的缓存，允许重试）
     key = _cache_key(chart_type, data)
     cached = _read_cache(key)
-    if cached:
+    if cached and "[AI 分析待生成]" not in cached and "API 调用失败" not in cached:
         return cached
 
     # 2. 获取 Prompt
@@ -134,13 +134,13 @@ def generate_analysis(chart_type: str, data: dict, context: dict | None = None) 
         **ctx,
     )
 
-    # 4. 调用 LLM
+    # 4. 调用 LLM（失败时不缓存，允许下次重试）
     try:
         result = _call_llm(system_prompt, user_content)
     except Exception as e:
-        result = _fallback(f"API 调用失败: {e}")
+        return _fallback(f"API 调用失败: {e}")
 
-    # 5. 写入缓存
+    # 5. 写入缓存（仅缓存成功结果）
     _write_cache(key, result)
     return result
 

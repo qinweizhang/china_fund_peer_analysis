@@ -22,3 +22,4 @@ Thumbs.db
 # 上传的季度数据（用户上传，不入库）
 uploads/
 .claude/
+.ai_cache/
