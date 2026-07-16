@@ -180,6 +180,22 @@ function renderProfile(htmlId, data) {
         ).join('')}
       </div>
     </div>
+    ${data.ai_pa ? `<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块A 产品规模画像</div>
+      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pa}</div>
+    </div>` : ''}
+    ${data.ai_pb ? `<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块B 产品增长来源</div>
+      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pb}</div>
+    </div>` : ''}
+    ${data.ai_pc ? `<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块C 产品布局分析</div>
+      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pc}</div>
+    </div>` : ''}
+    ${data.ai_pd ? `<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 板块D 产品特征分析</div>
+      <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">${data.ai_pd}</div>
+    </div>` : ''}
   `;
   // 渲染图表
   renderProductBar("cp-bar", data);
@@ -191,13 +207,49 @@ function renderProfile(htmlId, data) {
   renderHistogram("cp-hist", data);
 }
 
+function renderBoardAllocation(elId, data) {
+  const el = document.getElementById(elId);
+  if (!el || !data || !data.scatter_points) return;
+  const usPts = data.us_scatter_points || [];
+  const chart = echarts.init(el, null, { renderer: "canvas" });
+  const series = [{
+    name: data.corp + " 产品",
+    type: "scatter", symbolSize: 8,
+    data: data.scatter_points.map(p => ({ value: [p.dd, p.ret], name: p.name })),
+    itemStyle: { color: ADLS.primary },
+  }];
+  if (usPts.length) {
+    series.push({
+      name: "工银瑞信 产品",
+      type: "scatter", symbolSize: 8,
+      data: usPts.map(p => ({ value: [p.dd, p.ret], name: p.name })),
+      itemStyle: { color: ADLS.up },
+    });
+  }
+  chart.setOption({
+    backgroundColor: "transparent",
+    grid: { left: 56, right: 30, top: 30, bottom: 40 },
+    tooltip: {
+      trigger: "item", backgroundColor: ADLS.bg, borderColor: ADLS.slate300,
+      textStyle: { color: ADLS.slate700, fontSize: 11 },
+      extraCssText: "box-shadow:none;border-radius:0;",
+      formatter: (p) => `${p.seriesName}<br/>${p.data.name}<br/>最大回撤: ${p.value[0]}%<br/>收益率: ${p.value[1]}%`,
+    },
+    legend: { textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
+    xAxis: { type: "value", name: "最大回撤(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
+    yAxis: { type: "value", name: "收益率(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
+    series: series,
+  });
+  window.addEventListener("resize", () => chart.resize());
+}
+
 function renderGrowthScatter(elId, data) {
   const el = document.getElementById(elId);
   if (!el || !data || !data.scatter_points) return;
   const usPts = data.us_scatter_points || [];
   const chart = echarts.init(el, null, { renderer: "canvas" });
   const series = [{
-    name: "选中公司产品",
+    name: data.corp + " 产品",
     type: "scatter", symbolSize: 8,
     data: data.scatter_points.map(p => ({ value: [p.dd, p.ret], name: p.name })),
     itemStyle: { color: ADLS.primary },
@@ -254,21 +306,34 @@ function renderAgeScatter(elId, data) {
 function renderHistogram(elId, data) {
   const el = document.getElementById(elId);
   if (!el || !data || !data.histogram) return;
+  const usHist = data.us_histogram || [];
   const chart = echarts.init(el, null, { renderer: "canvas" });
+  const series = [{
+    name: data.corp + " 产品",
+    type: "bar", data: data.histogram.map(h => h.count),
+    itemStyle: { color: ADLS.primary }, barWidth: "35%",
+    label: { show: true, position: "top", fontSize: 10, color: ADLS.slate500 },
+  }];
+  if (usHist.length) {
+    series.push({
+      name: "工银瑞信 产品",
+      type: "bar", data: usHist.map(h => h.count),
+      itemStyle: { color: ADLS.up }, barWidth: "35%",
+      label: { show: true, position: "top", fontSize: 10, color: ADLS.slate500 },
+    });
+  }
   chart.setOption({
     backgroundColor: "transparent",
-    grid: { left: 48, right: 20, top: 16, bottom: 40 },
+    grid: { left: 48, right: 20, top: 30, bottom: 40 },
     tooltip: {
       trigger: "axis", backgroundColor: ADLS.bg, borderColor: ADLS.slate300,
       textStyle: { color: ADLS.slate700, fontSize: 11 },
       extraCssText: "box-shadow:none;border-radius:0;",
-      formatter: (p) => `${p[0].name}<br/>产品数量: ${p[0].value}`,
     },
+    legend: { textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
     xAxis: { type: "category", data: data.histogram.map(h => h.label), ...axisStyle() },
     yAxis: { type: "value", name: "产品数量", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
-    series: [{ type: "bar", data: data.histogram.map(h => h.count), itemStyle: { color: ADLS.primary }, barWidth: "50%",
-      label: { show: true, position: "top", fontSize: 10, color: ADLS.slate500 },
-    }],
+    series: series,
   });
   window.addEventListener("resize", () => chart.resize());
 }

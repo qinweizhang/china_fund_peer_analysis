@@ -70,6 +70,11 @@
   </div>
 </div>
 
+<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 表2.1 板块配置</div>
+  <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_2_1 }}</div>
+</div>
+
 {# ===== 2.2 板块配置（A股、港股拆分） ===== #}
 <div class="box">
   <div class="box-head">
@@ -117,6 +122,11 @@
   </div>
 </div>
 
+<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 表2.2 A股/港股拆分</div>
+  <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_2_2 }}</div>
+</div>
+
 {# ===== 2.3 板块配置变动 ===== #}
 <div class="box">
   <div class="box-head">
@@ -151,6 +161,11 @@
   <div class="box-foot note">
     <b>口径</b>（demo 近似）：本期占比 − 上期占比（未剔除行业涨跌幅，仅做市值占比差）；报告口径需用行业收益率剔除涨跌幅影响，第二阶段实现。末行"工银瑞信（剔除行业基金）"取剔除行业基金后口径。
   </div>
+</div>
+
+<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 表2.3 板块变动</div>
+  <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_2_3 }}</div>
 </div>
 
 {# ===== 2.4 板块配置变动（A股、港股拆分） ===== #}
@@ -194,6 +209,11 @@
   </div>
 </div>
 
+<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 表2.4 A股/港股拆分变动</div>
+  <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_2_4 }}</div>
+</div>
+
 {# ===== 2.5 重仓股 ===== #}
 <div class="box">
   <div class="box-head">
@@ -235,6 +255,11 @@
   </div>
 </div>
 
+<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 表2.5 重仓股配置</div>
+  <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_top10 }}</div>
+</div>
+
 {# ===== 2.6 集中度与仓位 ===== #}
 <div class="grid grid-2">
   <div class="box">
@@ -245,6 +270,14 @@
     <div class="box-head"><span class="title">TOP3 行业集中度变动</span><span class="badge">2.6 · CHART</span></div>
     <div class="box-body padded"><div id="chart-top3" class="chart"></div></div>
   </div>
+</div>
+
+<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 集中度变动</div>
+  <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_conc }}</div>
+</div>
+
+<div class="grid grid-2">
   <div class="box">
     <div class="box-head"><span class="title">规模加权仓位变动</span><span class="badge">2.6 · CHART</span></div>
     <div class="box-body padded"><div id="chart-pos-w" class="chart"></div></div>
@@ -253,6 +286,11 @@
     <div class="box-head"><span class="title">算术平均仓位变动</span><span class="badge">2.6 · CHART</span></div>
     <div class="box-body padded"><div id="chart-pos-a" class="chart"></div></div>
   </div>
+</div>
+
+<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 仓位变动</div>
+  <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_pos }}</div>
 </div>
 
 {% endblock %}

@@ -1126,6 +1126,7 @@ def _company_profile_internal(corp, ps, pc, nav, LATEST_Q, PREV_Q) -> dict:
         # 板块D
         "scatter_age_points": scatter_age_points,
         "histogram": histogram,
+        "us_histogram": us_data.get("histogram") if us_data else histogram,
         # 板块E
         "insights": insights,
         # 工银瑞信对比

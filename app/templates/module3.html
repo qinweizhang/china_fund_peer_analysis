@@ -11,7 +11,7 @@
 {% block content %}
 <div class="page-head">
   <h1>同业规模及变动分析</h1>
-  <span class="lede">公司及产品规模变动 · 永赢/大成专题（{{ LATEST_Q_LABEL }}）</span>
+  <span class="lede">公司及产品规模变动（{{ LATEST_Q_LABEL }}）</span>
 </div>
 
 {# ===== 3.1 公司规模历史与拆分 ===== #}
@@ -31,7 +31,7 @@
           <th class="grp sep" colspan="{{ scale.split_quarters|length * 3 }}">规模变动拆分（亿元）</th>
         </tr>
         <tr>
-          {% for q in scale.quarters %}<th class="c" rowspan="2">{{ q[:7] }}</th>{% endfor %}
+          {% for q in scale.quarters %}<th class="c" rowspan="2">{{ q[:4] }}Q{{ (q[5:7]|int - 1)//3 + 1 }}</th>{% endfor %}
           <th class="c" rowspan="2">{{ LATEST_Q_LABEL }}变动幅度</th>
           {% for ik, ilabel in items %}
           <th class="c grp-item sep" colspan="{{ scale.split_quarters|length }}">{{ ilabel }}</th>
@@ -39,7 +39,7 @@
         </tr>
         <tr>
           {% for ik, ilabel in items %}
-          {% for q in scale.split_quarters %}<th class="c{{ ' sep' if loop.first }}">{{ q[:7] }}</th>{% endfor %}
+          {% for q in scale.split_quarters %}<th class="c{{ ' sep' if loop.first }}">{{ q[:4] }}Q{{ (q[5:7]|int - 1)//3 + 1 }}</th>{% endfor %}
           {% endfor %}
         </tr>
       </thead>
@@ -68,6 +68,11 @@
   </div>
 </div>
 
+<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 规模及拆分</div>
+  <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_scale }}</div>
+</div>
+
 {# ===== 图3.1 / 图3.2 (不变) 规模区间 + 类型规模变动（并排） ===== #}
 <div class="grid grid-2">
   <div class="box">
@@ -92,6 +97,11 @@
       <b>口径</b>：最新季与上一季均在的产品，按事后分类汇总 (q1−q4) 规模变动（亿元），降序。绿=增长、红=缩减。类型与数值随传入数据自适应。
     </div>
   </div>
+</div>
+
+<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 规模区间与类型变动</div>
+  <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_bin_type }}</div>
 </div>
 
 {# ===== 规模增长TOP10 及 缩减TOP10（合并表） ===== #}
@@ -154,6 +164,11 @@
   </div>
 </div>
 
+<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 规模增长与缩减TOP10</div>
+  <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_top10 }}</div>
+</div>
+
 {# ===== 散点：各公司加权最大回撤 vs 收益率 ===== #}
 <div class="box">
   <div class="box-head">
@@ -167,23 +182,27 @@
   </div>
 </div>
 
+<div style="background:#EBE5D0; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
+  <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 加权回撤与收益率</div>
+  <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_rvd }}</div>
+</div>
+
 {# ===== 3.4 公司选择 + 单公司分析框架（待填充） ===== #}
 <div class="box">
-  <div class="box-head">
+  <div class="box-head" style="height:auto;padding:8px 12px;">
     <span class="title">公司专题分析</span>
     <span class="badge">3.4 · COMPANY</span>
-    <span class="right">选择公司查看专题</span>
-  </div>
-  <div class="box-body" style="padding:12px;">
-    <form method="get" action="{{ url_for('module3') }}" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-      <span style="font-size:12px;font-weight:700;color:var(--slate-500);text-transform:uppercase;letter-spacing:.06em;">选择公司</span>
-      <select name="corp" class="ds-select" style="min-width:140px;" onchange="this.form.submit()">
+    <form method="get" action="{{ url_for('module3') }}" style="display:flex;align-items:center;gap:8px;margin-left:16px;">
+      <span style="font-size:13px;font-weight:700;color:var(--slate-600);text-transform:uppercase;letter-spacing:.06em;">选择公司</span>
+      <select name="corp" class="ds-select" style="min-width:180px;font-size:14px;padding:6px 10px;" onchange="this.form.submit()">
         {% for corp in CORPS %}
         <option value="{{ corp }}" {{ 'selected' if corp == selected_corp }}>{{ corp }}</option>
         {% endfor %}
       </select>
-      <span style="font-size:11px;color:var(--slate-400);">共 {{ CORPS|length }} 家</span>
+      <span style="font-size:12px;color:var(--slate-400);">共 {{ CORPS|length }} 家</span>
     </form>
+  </div>
+  <div class="box-body" style="padding:12px;">
     <div id="company-content"></div>
   </div>
 </div>
