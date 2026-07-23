@@ -38,6 +38,22 @@ def _fc_key(code) -> str | None:
 # 模块一：同业业绩及规模概况
 # ============================================================
 
+def peer_order() -> list[str]:
+    """01 板块十五大的显示顺序：按当年YTD收益率降序（None 居末）。
+
+    与 company_overview 的 ret_q 降序一致；02 所有表格自上而下跟随此顺序。
+    """
+    rk = dl.ranking()
+    peer = dl.peer_corps()
+    latest = dl.latest_q()
+    begin = f"{int(latest[:4])}-01-01" if latest else ""
+    rets = {}
+    for corp in peer:
+        sub = rk[(rk["corp"] == corp) & (rk["begin"].astype(str) == begin)]
+        rets[corp] = float(sub.iloc[0]["return"]) if (not sub.empty and pd.notna(sub.iloc[0]["return"])) else None
+    return sorted(peer, key=lambda c: rets[c] if rets[c] is not None else -999, reverse=True)
+
+
 def company_overview() -> list[dict]:
     """十五家公司权益规模及业绩总览表（最新季自适应，基金级资金流分解）。
 
@@ -251,7 +267,7 @@ def board_table(pub_date: str | None = None) -> tuple[list[dict], list[dict]]:
     alloc = _board_allocation(pd_, exclude_industry=False)
     alloc_excl = _board_allocation(pd_, exclude_industry=True)
     rows = []
-    for corp in dl.FIFTEEN:
+    for corp in peer_order():
         r = _board_row(alloc, corp)
         if r is None:
             continue
@@ -283,7 +299,7 @@ def board_table_by_market(pub_date: str | None = None) -> tuple[list[dict], list
     alloc_excl = _board_allocation(pd_, exclude_industry=True)
     keys = [f"{m}_{b}" for m in MARKETS for b in BOARDS]
     rows = []
-    for corp in dl.FIFTEEN:
+    for corp in peer_order():
         r = _board_row_market(alloc, corp)
         if r is None:
             continue
@@ -431,7 +447,7 @@ def board_change_table() -> list[dict]:
         return row
 
     rows = []
-    for corp in dl.FIFTEEN:
+    for corp in peer_order():
         r = _change(cur, prev, corp)
         r["is_us"] = corp == dl.OUR_COMPANY
         rows.append(r)
@@ -468,7 +484,7 @@ def board_change_table_by_market() -> list[dict]:
         return row
 
     rows = []
-    for corp in dl.FIFTEEN:
+    for corp in peer_order():
         r = _change(cur, prev, corp)
         r["is_us"] = corp == dl.OUR_COMPANY
         rows.append(r)
@@ -531,7 +547,7 @@ def top10_holdings() -> list[dict]:
     prev_h_excl = dl.holdings(exclude_industry=True)
     prev_h_excl = prev_h_excl[prev_h_excl["pub_date"].astype(str) == str(PREV_Q)].copy() if PREV_Q else prev_h_excl.iloc[0:0]
     rows = []
-    for corp in dl.FIFTEEN:
+    for corp in peer_order():
         r = _row_for(h, corp, prev_h)
         if r is not None:
             rows.append(r)
@@ -551,7 +567,7 @@ def concentration_series() -> dict:
     for t in ("top20", "top3_industry"):
         key = "top20" if t == "top20" else "top3"
         sub = c[c["type"] == t]
-        for corp in dl.FIFTEEN:
+        for corp in peer_order():
             s = sub[sub["corp"] == corp].sort_values("pub_date")
             if s.empty:
                 continue
@@ -566,7 +582,7 @@ def position_series() -> dict:
     """仓位时间序列：算术平均 / 规模加权。"""
     p = dl.position()
     out = {"arith": {}, "weighted": {}}
-    for corp in dl.FIFTEEN:
+    for corp in peer_order():
         s = p[p["corp"] == corp].sort_values("pub_date")
         if s.empty:
             continue
@@ -604,6 +620,7 @@ def scale_history() -> dict:
     """
     ps = dl.product_scale()
     all_q, LATEST_Q, PREV_Q = _q()
+    all_q = all_q[-6:]          # 规模（亿元）列只保留最新 6 个季末，不随新数据叠加
     split_qs = all_q[-5:]
     scale = ps.groupby(["corp", "pub_date"])["total_nav"].sum().unstack("pub_date")
     ret_fund, scale_fund = _fund_returns()          # unit_nav pct_change, total_nav pivot
@@ -647,7 +664,7 @@ def scale_history() -> dict:
         return float(scale_fund.loc[new_f, q_ts].sum()) if new_f else 0.0
 
     rows = []
-    for corp in dl.FIFTEEN:
+    for corp in peer_order():
         if corp not in scale.index:
             continue
         q_series = {}
@@ -830,7 +847,7 @@ def return_vs_drawdown() -> list[dict]:
     corp_w = defaultdict(lambda: {"w_dd": 0.0, "w_ret": 0.0, "w": 0.0})
     for fc, sub in nav_q1.groupby("fc_key"):
         corp = fund_corp.get(fc)
-        if corp not in dl.FIFTEEN_SET:
+        if corp not in dl.peer_set():
             continue
         w = fund_nav.get(fc)
         if not w or w <= 0:
@@ -849,7 +866,7 @@ def return_vs_drawdown() -> list[dict]:
         corp_w[corp]["w"] += w
 
     rows = []
-    for corp in dl.FIFTEEN:
+    for corp in peer_order():
         m = corp_w.get(corp)
         if not m or m["w"] == 0:
             continue

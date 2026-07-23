@@ -220,8 +220,6 @@ table.data td.l, table.data th.l { text-align: left; }
 table.data td.c, table.data th.c { text-align: center; }
 /* 粗分隔线：板块 vs A股/港股、A股组 vs 港股组 */
 table.data th.sep, table.data td.sep { border-left: 2px solid var(--slate-500); }
-table.data tr.excl td { background: rgba(79,149,157,.10); }
-table.data tr.excl td:first-child { border-left: 2px solid var(--able-mint); }
 /* 合并表区间标签列 + 分区间粗线 */
 table.data td.sec { background: var(--slate-100); font-weight: 700; color: var(--able-primary); text-align: center; vertical-align: middle; letter-spacing: .04em; }
 table.data tr.sec-bound td { border-top: 2px solid var(--slate-500); }
@@ -238,9 +236,12 @@ table.data td.num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 table.data tbody tr:nth-child(odd):not(.us):not(.excl):not(.avg):not(.rank):not(.section) { background: #fff; }
 table.data tbody tr:nth-child(even):not(.us):not(.excl):not(.avg):not(.rank):not(.section) { background: var(--row-alt); }
 table.data tbody tr:hover:not(.us):not(.excl) { background: var(--slate-100); }
-table.data tr.us { background: rgba(79,149,157,.08); }
-table.data tr.us:hover { background: rgba(79,149,157,.16); }
-table.data tr.us td:first-child { border-left: 2px solid var(--able-mint); }
+table.data tr.us { background: #FFE066; }
+table.data tr.us:hover { background: #FFD11A; }
+table.data tr.us td:first-child { border-left: 3px solid var(--up); }
+table.data tr.excl { background: #FFF3B0; }
+table.data tr.excl:hover { background: #FFE98A; }
+table.data tr.excl td:first-child { border-left: 3px solid var(--able-mint); }
 table.data tr.avg td { background: var(--slate-100); font-weight: 700; color: var(--slate-600); }
 table.data tr.rank td { background: var(--slate-50); color: var(--slate-500); font-size: 11px; }
 table.data tr.section td {

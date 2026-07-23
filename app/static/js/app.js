@@ -66,7 +66,7 @@ function renderTypeDonut(elId, data) {
       textStyle: { color: ADLS.slate700, fontSize: 11 },
       extraCssText: "box-shadow:none;border-radius:0;",
     },
-    legend: { type: "scroll", textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
+    legend: { type: "plain", textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
     series: series,
   });
   window.addEventListener("resize", () => chart.resize());
@@ -390,7 +390,7 @@ function tooltip() {
 
 function legend() {
   return {
-    type: "scroll",
+    type: "plain",
     textStyle: { color: ADLS.slate500, fontSize: 10 },
     itemWidth: 10, itemHeight: 8,
     top: 0,
@@ -430,7 +430,7 @@ function renderTimeSeries(elId, data, field, valueSuffix, usName, opts = {}) {
   const chart = echarts.init(el, null, { renderer: "canvas" });
   chart.setOption({
     backgroundColor: "transparent",
-    grid: baseGrid(),
+    grid: { left: 48, right: 16, top: 70, bottom: 32 },
     tooltip: tooltip(),
     legend: legend(),
     xAxis: { type: "category", data: dates, ...axisStyle({ axisLabel: { color: ADLS.slate500, fontSize: 10, rotate: 0 } }) },
@@ -475,7 +475,7 @@ function renderScatter(elId, points, usName) {
   const chart = echarts.init(el, null, { renderer: "canvas" });
   chart.setOption({
     backgroundColor: "transparent",
-    grid: { left: 56, right: 24, top: 16, bottom: 40 },
+    grid: { left: 56, right: 24, top: 70, bottom: 40 },
     tooltip: {
       trigger: "item",
       backgroundColor: ADLS.bg, borderColor: ADLS.slate300,
@@ -483,7 +483,7 @@ function renderScatter(elId, points, usName) {
       extraCssText: "box-shadow:none;border-radius:0;",
       formatter: (p) => `${p.data.name}<br/>加权收益率: ${p.value[1]}%<br/>加权最大回撤: ${p.value[0]}%`,
     },
-    legend: { type: "scroll", textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
+    legend: { type: "plain", textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
     xAxis: { type: "value", name: "加权最大回撤(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle(), ...(xR || {}) },
     yAxis: { type: "value", name: "加权收益率(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle(), ...(yR || {}) },
     series,
@@ -513,7 +513,7 @@ function renderStackedArea(elId, data, usName) {
     backgroundColor: "transparent",
     grid: baseGrid(),
     tooltip: tooltip(),
-    legend: { type: "scroll", textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
+    legend: { type: "plain", textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
     xAxis: { type: "category", data: quarters, ...axisStyle() },
     yAxis: { type: "value", ...axisStyle(), axisLabel: { formatter: (v) => v } },
     series,

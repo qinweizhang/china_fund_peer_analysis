@@ -55,7 +55,7 @@ def inject_globals():
         "RET_3Y_LABEL": ret_3y_label,
         "BOARDS": metrics.BOARDS,
         "MARKETS": metrics.MARKETS,
-        "CORPS": dl.FIFTEEN,
+        "CORPS": dl.peer_corps(),
         "DATASETS": dl.datasets(),
         "ACTIVE_LABEL": dl.active_label(),
     }

@@ -30,20 +30,18 @@ FIFTEEN_SET = set(FIFTEEN)
 _COMPANY_SUFFIX = "基金"
 
 
-def normalize_corp(name: str, keep_all: bool = False) -> str | None:
-    """把 '大成基金' -> '大成'。
+def normalize_corp(name: str, keep_all: bool = True) -> str | None:
+    """把 '大成基金' -> '大成'（仅去后缀，保留全部公司）。
 
-    keep_all=False（默认）：仅保留 FIFTEEN 名单内公司，其余返回 None。
-    keep_all=True：仅去后缀，保留全部公司（用于数据驱动地派生前 N 名）。
+    名单过滤改由 product_scale/ranking 等访问器在 DataFrame 层用 peer_set() 完成，
+    这里只做公司名归一化。keep_all 参数保留以兼容旧调用，已无实际作用。
     """
     if not name:
         return None
     n = name.strip()
     if n.endswith(_COMPANY_SUFFIX):
         n = n[: -len(_COMPANY_SUFFIX)]
-    if keep_all:
-        return n if n else None
-    return n if n in FIFTEEN_SET else None
+    return n if n else None
 
 
 # ============================================================
@@ -137,8 +135,10 @@ def clear_cache(path: str | None = None) -> None:
     """清除缓存（上传新数据或切换后调用）。path=None 清全部。"""
     if path is None:
         _CACHE.clear()
+        _PEER_CACHE.clear()
     else:
         _CACHE.pop(os.path.abspath(path), None)
+        _PEER_CACHE.pop(os.path.abspath(path), None)
 
 
 # ============================================================
@@ -146,8 +146,11 @@ def clear_cache(path: str | None = None) -> None:
 # ============================================================
 
 def quarters() -> list[str]:
-    """产品规模表中所有季末时点（升序，YYYY-MM-DD 字符串）。"""
-    qs = product_scale()["pub_date"].dt.strftime("%Y-%m-%d").unique().tolist()
+    """产品规模表中所有季末时点（升序，YYYY-MM-DD 字符串）。
+
+    用 keep_all=True 取全量（季度集合与公司过滤无关），避免与 peer_set 循环依赖。
+    """
+    qs = product_scale(keep_all=True)["pub_date"].dt.strftime("%Y-%m-%d").unique().tolist()
     return sorted(qs)
 
 
@@ -161,20 +164,34 @@ def prev_q() -> str | None:
     return qs[-2] if len(qs) > 1 else None
 
 
+_PEER_CACHE: dict[str, list[str]] = {}
+
+
 def peer_corps(top_n: int = 15) -> list[str]:
     """数据驱动的同业前 N 家公司：最新季按权益规模(TOTAL_NAV)降序取前 N。
 
-    替代固定 FIFTEEN 名单——随激活数据集自适应。用于模块一"十五大"展示。
+    替代固定 FIFTEEN 名单——随激活数据集自适应，作为全站统一的"十五大"口径。
+    结果按激活数据集绝对路径缓存；切换/上传数据后 clear_cache() 会清掉。
     """
+    p = os.path.abspath(active_path())
+    if p in _PEER_CACHE:
+        return _PEER_CACHE[p]
     latest = latest_q()
     if not latest:
-        return list(FIFTEEN)
+        _PEER_CACHE[p] = list(FIFTEEN)
+        return _PEER_CACHE[p]
     ps = product_scale(keep_all=True)
     sub = ps[ps["pub_date"] == pd.Timestamp(latest)]
     g = sub.groupby("corp")["total_nav"].sum().sort_values(ascending=False)
     corps = list(g.head(top_n).index)
     # 不足 N 家（数据偏少）时回退固定名单，保证始终有可比口径
-    return corps if len(corps) >= min(top_n, len(g)) else list(FIFTEEN)
+    _PEER_CACHE[p] = corps if len(corps) >= min(top_n, len(g)) else list(FIFTEEN)
+    return _PEER_CACHE[p]
+
+
+def peer_set() -> set[str]:
+    """动态十五大公司集合（供访问器过滤用）。"""
+    return set(peer_corps())
 
 
 def year_start_q() -> str | None:
@@ -203,7 +220,8 @@ def year_start_q() -> str | None:
 def ranking(keep_all: bool = False) -> pd.DataFrame:
     """权益银河排名。POINTRATE 为文本百分比，需解析。
 
-    keep_all=True 时保留全部公司（仅去"基金"后缀），用于数据驱动派生前 N 名。
+    keep_all=True 时保留全部公司（仅去"基金"后缀），用于数据驱动派生前 N 名；
+    keep_all=False（默认）按动态 peer_set() 过滤到当前十五大。
     """
     df = _sheet("权益银河排名").copy()
     df.columns = ["corp", "begin", "end", "return_text", "ranking"]
@@ -216,15 +234,18 @@ def ranking(keep_all: bool = False) -> pd.DataFrame:
     parts = df["ranking"].astype(str).str.split("/", expand=True)
     df["rank"] = pd.to_numeric(parts[0], errors="coerce")
     df["rank_total"] = pd.to_numeric(parts[1], errors="coerce")
-    df["corp"] = df["corp"].map(lambda x: normalize_corp(x, keep_all=keep_all))
-    df = df[df["corp"].isin(FIFTEEN_SET)].copy() if not keep_all else df[df["corp"].notna()].copy()
+    df["corp"] = df["corp"].map(normalize_corp)
+    df = df[df["corp"].notna()].copy()
+    if not keep_all:
+        df = df[df["corp"].isin(peer_set())].copy()
     return df
 
 
 def product_scale(keep_all: bool = False) -> pd.DataFrame:
     """产品规模。规整公司名、数值列、日期。
 
-    keep_all=True 时保留全部公司（仅去"基金"后缀），用于数据驱动派生前 N 名。
+    keep_all=True 时保留全部公司（仅去"基金"后缀），用于数据驱动派生前 N 名；
+    keep_all=False（默认）按动态 peer_set() 过滤到当前十五大。
     """
     raw = _sheet("产品规模")
     raw = raw.iloc[:, :10]  # 前 10 列为有效字段，其后为注释
@@ -233,8 +254,10 @@ def product_scale(keep_all: bool = False) -> pd.DataFrame:
         "issue_date", "classify_label", "unit_nav", "total_nav", "total_shares",
     ]
     df = raw.copy()
-    df["corp"] = df["company"].map(lambda x: normalize_corp(x, keep_all=keep_all))
+    df["corp"] = df["company"].map(normalize_corp)
     df = df[df["corp"].notna()].copy()
+    if not keep_all:
+        df = df[df["corp"].isin(peer_set())].copy()
     df["pub_date"] = pd.to_datetime(df["pub_date"])
     df["total_nav"] = pd.to_numeric(df["total_nav"], errors="coerce")
     df["issue_date"] = pd.to_datetime(df["issue_date"], errors="coerce")
@@ -243,10 +266,43 @@ def product_scale(keep_all: bool = False) -> pd.DataFrame:
     return df
 
 
+def _post_classify_type(clabel: str) -> str:
+    """事后分类类型：由 CLASSIFY_LABEL 按规则派生（替代可能为空的 INDUSTRIESNAME）。
+
+      全市场基金 / 全市场基金（股票比例50%以下） -> 宽基基金(事后)
+      医药行业基金                            -> 医药行业基金(事后)
+      TMT行业基金                            -> 科技行业基金(事后)
+      消费行业基金 / 农业主题行业基金          -> 消费行业基金(事后)
+      其余                                   -> 周期制造行业基金(事后)
+    """
+    if clabel in ("全市场基金", "全市场基金（股票比例50%以下）"):
+        return "宽基基金(事后)"
+    if clabel == "医药行业基金":
+        return "医药行业基金(事后)"
+    if clabel == "TMT行业基金":
+        return "科技行业基金(事后)"
+    if clabel in ("消费行业基金", "农业主题行业基金"):
+        return "消费行业基金(事后)"
+    return "周期制造行业基金(事后)"
+
+
 def post_classify() -> pd.DataFrame:
-    """产品事后分类。"""
+    """产品事后分类。
+
+    INDUSTRIESNAME 列可能为空，故 INDUSTRIESNAME 改由 CLASSIFY_LABEL 按规则派生
+    （见 _post_classify_type）。TOTAL_NAV 经 left join 取自"产品规模"sheet
+    （按 fund_code + pub_date），更准更全；缺失时回退原表值。
+    """
     df = _sheet("产品事后分类").copy()
     df.columns = ["pub_date", "fund_code", "fund_name", "industries_name", "classify_label", "total_nav"]
+    df["industries_name"] = df["classify_label"].map(_post_classify_type)
+    # left join 产品规模 的 total_nav（按 fund_code + pub_date）
+    df["pub_date"] = pd.to_datetime(df["pub_date"])
+    ps = product_scale(keep_all=True)
+    psv = ps[["fund_code", "pub_date", "total_nav"]].copy()
+    df = df.merge(psv, on=["fund_code", "pub_date"], how="left", suffixes=("_pc", "_ps"))
+    df["total_nav"] = df["total_nav_ps"].fillna(df["total_nav_pc"])
+    df = df.drop(columns=["total_nav_pc", "total_nav_ps"])
     return df
 
 
@@ -351,11 +407,11 @@ def concentration() -> pd.DataFrame:
 
 
 def position() -> pd.DataFrame:
-    """仓位：算术平均 / 规模加权。"""
+    """仓位：算术平均 / 规模加权（按动态十五大过滤）。"""
     df = _sheet("仓位").copy()
     df.columns = ["corp", "pub_date", "arith", "weighted"]
     df = df.dropna(subset=["corp"]).copy()
-    df = df[df["corp"].isin(FIFTEEN_SET | {"东方证券资管", "交银施罗德"})].copy()
+    df = df[df["corp"].isin(peer_set())].copy()
     return df
 
 
