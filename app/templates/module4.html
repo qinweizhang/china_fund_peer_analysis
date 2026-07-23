@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}公司专题分析{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>公司专题分析</h1>
+  <span class="lede">单公司产品规模画像（{{ LATEST_Q_LABEL }}）</span>
+</div>
+
+<div class="box">
+  <div class="box-head" style="height:auto;padding:8px 12px;flex-wrap:wrap;gap:8px;">
+    <span class="title">公司专题分析</span>
+    <span class="badge">4.0 · COMPANY</span>
+    <span style="font-size:13px;font-weight:700;color:var(--slate-600);text-transform:uppercase;letter-spacing:.06em;margin-left:16px;">选择公司</span>
+    <select id="corp-select" class="ds-select" style="min-width:180px;font-size:14px;padding:6px 10px;">
+      {% for corp in CORPS %}
+      <option value="{{ corp }}" {{ 'selected' if corp == selected_corp }}>{{ corp }}</option>
+      {% endfor %}
+    </select>
+    <span style="font-size:12px;color:var(--slate-400);">共 {{ CORPS|length }} 家</span>
+    <span class="right" id="corp-status" style="font-size:12px;color:var(--slate-400);"></span>
+  </div>
+  <div class="box-body" style="padding:12px;">
+    <div id="company-content">
+      <div style="padding:24px;text-align:center;color:var(--slate-400);">加载中…</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const US = "{{ OUR_COMPANY }}";
+  const API_BASE = "{{ url_for('api_company', corp='__CORP__') }}";
+
+  async function loadProfile(corp) {
+    const el = document.getElementById("company-content");
+    const status = document.getElementById("corp-status");
+    el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--slate-400);">加载中…</div>';
+    status.textContent = "加载中…";
+    try {
+      const url = API_BASE.replace("__CORP__", encodeURIComponent(corp));
+      const r = await fetch(url);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const data = await r.json();
+      renderProfile("company-content", data);
+      status.textContent = "";
+    } catch (e) {
+      el.innerHTML = '<div style="padding:24px;color:var(--up);">加载失败：' + e.message + "</div>";
+      status.textContent = "加载失败";
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("corp-select").addEventListener("change", (e) => loadProfile(e.target.value));
+    loadProfile("{{ selected_corp }}");
+  });
+</script>
+{% endblock %}

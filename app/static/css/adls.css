@@ -16,6 +16,7 @@
   --down: #10b981;
   --warn: #f59e0b;
   --radius: 0;
+  --row-alt: #E8EEF5;   /* 表格斑马纹偶数行底色（浅灰，区别于白底）*/
   /* 深色背景色卡 */
   --bg-darkest: #3D4F5D;
   --bg-dark: #4A5C6B;
@@ -82,9 +83,11 @@ a:hover { text-decoration: underline; }
   color: var(--bg-lightest);
   border-right: 1px solid var(--bg-mid);
   letter-spacing: .04em;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .topbar nav a .idx {
-  color: var(--bg-light); margin-right: 8px; font-weight: 700; font-size: 13px;
+  color: var(--bg-light); margin-right: 8px; font-weight: 700; font-size: 11px;
 }
 .topbar nav a:hover { background: var(--bg-dark); text-decoration: none; color: #fff; }
 .topbar nav a.active {
@@ -94,18 +97,28 @@ a:hover { text-decoration: underline; }
 .topbar nav a.active .idx { color: rgba(255,255,255,.7); }
 .topbar .spacer { flex: 1; }
 
-/* 右上角工具区：数据集切换 + 上传 */
+/* 右上角工具区：当前数据集只读展示（固定宽度，名称自动换行，不撑动布局） */
 .topbar .tools {
-  display: flex; align-items: stretch; gap: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 14px;
+  min-height: 52px;
+  max-width: 230px;
   border-left: 1px solid var(--bg-mid);
 }
-.topbar .tools form { display: flex; align-items: center; }
-.topbar .tools .ds-form { padding: 0 12px; gap: 8px; border-right: 1px solid var(--bg-mid); }
 .topbar .tools .ds-label {
   font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
-  color: var(--bg-light); font-weight: 700;
+  color: var(--bg-light); font-weight: 700; flex-shrink: 0;
 }
-.topbar .tools .ds-select {
+.topbar .tools .ds-value {
+  font-size: 12px;
+  color: rgba(255, 255, 255, .82);
+  font-family: ui-monospace, monospace;
+  max-width: 165px;
+  line-height: 1.35;
+  word-break: break-all;
+  white-space: normal;
+}
+.ds-select {
   font-size: 12px; color: var(--slate-700);
   background: #fff;
   border: 1px solid var(--bg-light);
@@ -114,16 +127,6 @@ a:hover { text-decoration: underline; }
   border-radius: 0;
   cursor: pointer;
 }
-.topbar .tools .up-form { padding: 0 12px; border-right: 1px solid var(--bg-mid); }
-.topbar .tools .up-btn {
-  display: inline-flex; align-items: center;
-  font-size: 12px; font-weight: 700; letter-spacing: .04em;
-  color: #fff; background: var(--bg-mid);
-  border: 1px solid var(--bg-mid);
-  padding: 6px 14px; cursor: pointer;
-}
-.topbar .tools .up-btn:hover { background: var(--bg-light); border-color: var(--bg-light); }
-.topbar .tools .up-btn input { display: none; }
 
 .topbar .meta {
   padding: 0 16px;
@@ -231,7 +234,10 @@ table.data th.grp {
   letter-spacing: .06em;
 }
 table.data td.num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-table.data tbody tr:hover { background: var(--slate-100); }
+/* 斑马纹：奇白偶浅灰；工银瑞信(.us)/剔除(.excl)/平均值(.avg)/排名(.rank)/区间(.section) 行保留各自底色 */
+table.data tbody tr:nth-child(odd):not(.us):not(.excl):not(.avg):not(.rank):not(.section) { background: #fff; }
+table.data tbody tr:nth-child(even):not(.us):not(.excl):not(.avg):not(.rank):not(.section) { background: var(--row-alt); }
+table.data tbody tr:hover:not(.us):not(.excl) { background: var(--slate-100); }
 table.data tr.us { background: rgba(79,149,157,.08); }
 table.data tr.us:hover { background: rgba(79,149,157,.16); }
 table.data tr.us td:first-child { border-left: 2px solid var(--able-mint); }
@@ -260,6 +266,7 @@ td.cell-neg { background: rgba(16,185,129,.10); }         /* 减持3-6% */
 /* 重仓股单元格 */
 td.hold-cell { text-align: left; }
 td.hold-cell .nm { color: var(--slate-700); }
+td.hold-cell .nm.new { color: var(--up); font-weight: 700; }
 td.hold-cell .rt { color: var(--slate-400); font-size: 11px; margin-left: 2px; }
 
 /* ===== 图表容器 ===== */

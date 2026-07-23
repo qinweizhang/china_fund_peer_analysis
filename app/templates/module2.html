@@ -70,10 +70,12 @@
   </div>
 </div>
 
+{# AI 分析（暂注释，保留待恢复）
 <div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
   <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 表2.1 板块配置</div>
   <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_2_1 }}</div>
 </div>
+#}
 
 {# ===== 2.2 板块配置（A股、港股拆分） ===== #}
 <div class="box">
@@ -122,10 +124,12 @@
   </div>
 </div>
 
+{# AI 分析（暂注释，保留待恢复）
 <div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
   <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 表2.2 A股/港股拆分</div>
   <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_2_2 }}</div>
 </div>
+#}
 
 {# ===== 2.3 板块配置变动 ===== #}
 <div class="box">
@@ -163,10 +167,12 @@
   </div>
 </div>
 
+{# AI 分析（暂注释，保留待恢复）
 <div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
   <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 表2.3 板块变动</div>
   <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_2_3 }}</div>
 </div>
+#}
 
 {# ===== 2.4 板块配置变动（A股、港股拆分） ===== #}
 <div class="box">
@@ -209,10 +215,12 @@
   </div>
 </div>
 
+{# AI 分析（暂注释，保留待恢复）
 <div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
   <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 表2.4 A股/港股拆分变动</div>
   <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_2_4 }}</div>
 </div>
+#}
 
 {# ===== 2.5 重仓股 ===== #}
 <div class="box">
@@ -235,7 +243,7 @@
           <td class="l">{{ r.corp }}{% if r.is_us %} <span class="tag mint">我司</span>{% endif %}</td>
           {% for s in r.stocks %}
           <td class="hold-cell">
-            <span class="nm">{{ s.name }}</span>
+            <span class="nm {{ 'new' if s.is_new }}">{{ s.name }}</span>
             {% if s.ret is not none %}
               <span class="rt {{ 'up' if s.ret > 0 else 'down' }}">{{ "%+.1f"|format(s.ret*100) }}</span>
             {% else %}<span class="rt">—</span>{% endif %}
@@ -251,14 +259,16 @@
     </table>
   </div>
   <div class="box-foot note">
-    <b>口径</b>（demo 近似）：按公司持仓明细市值降序取前 10，收益来自个股收益率表；报告口径为"各基金前十大重仓股加总"后排序，存在差异。
+    <b>口径</b>（demo 近似）：按公司持仓明细市值降序取前 10，收益来自个股收益率表；报告口径为"各基金前十大重仓股加总"后排序，存在差异。<span style="color:var(--up);font-weight:700;">红色标注</span>＝当季新进重仓股（上一季公司持仓明细中未出现、当季新建立的重仓仓位）。
   </div>
 </div>
 
+{# AI 分析（暂注释，保留待恢复）
 <div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
   <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 表2.5 重仓股配置</div>
   <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_2_5 }}</div>
 </div>
+#}
 
 {# ===== 2.6 集中度与仓位 ===== #}
 <div class="grid grid-2">
@@ -272,10 +282,12 @@
   </div>
 </div>
 
+{# AI 分析（暂注释，保留待恢复）
 <div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
   <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 集中度变动</div>
   <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_conc }}</div>
 </div>
+#}
 
 <div class="grid grid-2">
   <div class="box">
@@ -288,10 +300,12 @@
   </div>
 </div>
 
+{# AI 分析（暂注释，保留待恢复）
 <div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
   <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 仓位变动</div>
   <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_pos }}</div>
 </div>
+#}
 
 {% endblock %}
 

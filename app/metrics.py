@@ -41,24 +41,26 @@ def _fc_key(code) -> str | None:
 def company_overview() -> list[dict]:
     """十五家公司权益规模及业绩总览表（最新季自适应，基金级资金流分解）。
 
-    口径（季初=上一季末 PREV_Q，季末=最新季 LATEST_Q）：
+    口径（年初=上一年度年末 YEAR_START_Q，季末=最新季 LATEST_Q；YTD 从年初累计）：
     - 规模 = 产品规模表 TOTAL_NAV 按公司求和（亿元，全口径）。
-    - Δ = 季末规模 − 季初规模；规模变动幅度 = Δ / 季初规模。
-    - 收益率上涨（业绩贡献）= Σ_f [季初规模_f × 涨跌幅_f]，季初规模取自"产品规模"sheet TOTAL_NAV；
-      涨跌幅优先用"产品复权净值"sheet FUQUAN_UNIT_NAV 的(季末−季初)/季初，复权净值缺失的基金回退用
-      "产品规模"sheet UNIT_NAV 的(季末−季初)/季初。
-    - 新发 = 最新季在、上一季不在的基金的季末 TOTAL_NAV。
+    - Δ = 季末规模 − 年初规模；规模变动幅度 = Δ / 年初规模（年初至今 YTD）。
+    - 收益率上涨（业绩贡献）= Σ_f [年初规模_f × 涨跌幅_f]，年初规模取自"产品规模"sheet TOTAL_NAV；
+      涨跌幅优先用"产品复权净值"sheet FUQUAN_UNIT_NAV 的(季末−年初)/年初，复权净值缺失的基金回退用
+      "产品规模"sheet UNIT_NAV 的(季末−年初)/年初。
+    - 新发 = 最新季在、年初不在的基金的季末 TOTAL_NAV（YTD 新发）。
     - 持营 = Δ − 收益率上涨 − 新发（倒挤；吸收申赎净额等）。
-    - 三项之和 = Δ（季末 − 季初）。
+    - 三项之和 = Δ（季末 − 年初）。
     - 投资收益率列 = 权益银河排名表 begin=年内初 的 YTD 行（公司口径，独立于拆分）。
     """
-    rk = dl.ranking()
-    ps = dl.product_scale()
-    _, LATEST_Q, PREV_Q = _q()
+    rk = dl.ranking(keep_all=True)
+    ps = dl.product_scale(keep_all=True)
+    peer = dl.peer_corps()
+    _, LATEST_Q, _ = _q()
+    YEAR_START_Q = dl.year_start_q()
     LATEST_YEAR = int(LATEST_Q[:4])
-    prev_ts, latest_ts = pd.Timestamp(PREV_Q), pd.Timestamp(LATEST_Q)
+    prev_ts, latest_ts = pd.Timestamp(YEAR_START_Q), pd.Timestamp(LATEST_Q)
 
-    # 季初 = 上一季度末(PREV_Q)，季末 = 最新季度(LATEST_Q)；从产品规模表取每基金 TOTAL_NAV / UNIT_NAV
+    # 年初 = 上一年度年末(YEAR_START_Q)，季末 = 最新季度(LATEST_Q)；从产品规模表取每基金 TOTAL_NAV / UNIT_NAV
     cols = ["fund_code", "corp", "total_nav", "unit_nav"]
     prev = ps[ps["pub_date"] == prev_ts][cols]
     late = ps[ps["pub_date"] == latest_ts][cols]
@@ -95,11 +97,11 @@ def company_overview() -> list[dict]:
     prev_perf["perf"] = prev_perf["total_nav"] * prev_perf["fund_ret"]   # 季初规模 × 涨跌幅
     perf_by_corp = prev_perf.groupby("corp")["perf"].sum()
 
-    # 新发：最新季在、上一季不在的基金，取其最新季 TOTAL_NAV
+    # 新发：最新季在、年初不在的基金，取其最新季 TOTAL_NAV（YTD 新发）
     new_funds = late[~late["fund_code"].isin(prev["fund_code"])]
     new_by_corp = new_funds.groupby("corp")["total_nav"].sum()
 
-    # 公司季初/季末规模（亿元）= 旗下全部基金 TOTAL_NAV 求和；Δ = 季末 − 季初
+    # 公司年初/季末规模（亿元）= 旗下全部基金 TOTAL_NAV 求和；Δ = 季末 − 年初
     prev_sum = prev.groupby("corp")["total_nav"].sum()
     late_sum = late.groupby("corp")["total_nav"].sum()
 
@@ -112,7 +114,7 @@ def company_overview() -> list[dict]:
                int(r["rank_total"]) if pd.notna(r["rank_total"]) else None
 
     rows = []
-    for corp in dl.FIFTEEN:
+    for corp in peer:
         if corp not in late_sum.index:
             continue
         q1 = late_sum.get(corp)
@@ -489,19 +491,28 @@ def top10_holdings() -> list[dict]:
 
     口径（demo 近似）：按公司持仓明细市值降序取前 10；收益来自个股收益率表。
     报告口径为“各基金前十大重仓股加总”，本 demo 以公司持仓明细直接取。
+    新进重仓：当季 top-10 中、上一季度(PREV_Q)公司持仓明细里未出现的个股（新建立的重仓仓位），
+    模板中标红显示。仅有单季数据时无法判定，全部视为非新进。
     """
-    _, LATEST_Q, _ = _q()
+    _, LATEST_Q, PREV_Q = _q()
     sret = dl.stock_return()
 
-    def _row_for(hold: pd.DataFrame, corp: str, label: str | None = None,
-                 is_excl: bool = False) -> dict | None:
+    def _prev_secs(prev_hold: pd.DataFrame, corp: str) -> set[str]:
+        if prev_hold is None or prev_hold.empty:
+            return set()
+        return set(prev_hold[prev_hold["corp"] == corp]["sec_no"].astype(str))
+
+    def _row_for(hold: pd.DataFrame, corp: str, prev_hold: pd.DataFrame,
+                 label: str | None = None, is_excl: bool = False) -> dict | None:
         sub = hold[hold["corp"] == corp].sort_values("pos_mkt_val", ascending=False).head(10)
         if sub.empty:
             return None
+        prev_secs = _prev_secs(prev_hold, corp)
         stocks, rets = [], []
         for _, r in sub.iterrows():
-            ret = sret.get(str(r["sec_no"]))
-            stocks.append({"name": r["sec_name"], "ret": ret})
+            sno = str(r["sec_no"])
+            ret = sret.get(sno)
+            stocks.append({"name": r["sec_name"], "ret": ret, "is_new": sno not in prev_secs})
             if ret is not None:
                 rets.append(ret)
         avg_ret = sum(rets) / len(rets) if rets else None
@@ -514,13 +525,19 @@ def top10_holdings() -> list[dict]:
     h = dl.holdings()[dl.holdings()["pub_date"] == LATEST_Q].copy()
     h_excl = dl.holdings(exclude_industry=True)
     h_excl = h_excl[h_excl["pub_date"] == LATEST_Q].copy()
+    # 上一季持仓，用于判定"新进重仓"
+    prev_h = dl.holdings()
+    prev_h = prev_h[prev_h["pub_date"].astype(str) == str(PREV_Q)].copy() if PREV_Q else prev_h.iloc[0:0]
+    prev_h_excl = dl.holdings(exclude_industry=True)
+    prev_h_excl = prev_h_excl[prev_h_excl["pub_date"].astype(str) == str(PREV_Q)].copy() if PREV_Q else prev_h_excl.iloc[0:0]
     rows = []
     for corp in dl.FIFTEEN:
-        r = _row_for(h, corp)
+        r = _row_for(h, corp, prev_h)
         if r is not None:
             rows.append(r)
     # 末行：工银瑞信（剔除行业基金）
-    us_excl = _row_for(h_excl, dl.OUR_COMPANY, label="工银瑞信（剔除行业基金）", is_excl=True)
+    us_excl = _row_for(h_excl, dl.OUR_COMPANY, prev_h_excl,
+                       label="工银瑞信（剔除行业基金）", is_excl=True)
     if us_excl is not None:
         us_excl["is_us"] = True
         rows.append(us_excl)

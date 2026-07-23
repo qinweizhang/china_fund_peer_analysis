@@ -14,31 +14,22 @@
     </div>
     <nav>
       <a href="{{ url_for('module1') }}" class="{{ 'active' if active=='m1' }}">
-        <span class="idx">01</span>业绩及规模概况
+        <span class="idx">01</span>业绩及<br>规模概况
       </a>
       <a href="{{ url_for('module2') }}" class="{{ 'active' if active=='m2' }}">
-        <span class="idx">02</span>持仓及变动分析
+        <span class="idx">02</span>持仓及<br>变动分析
       </a>
       <a href="{{ url_for('module3') }}" class="{{ 'active' if active=='m3' }}">
-        <span class="idx">03</span>规模及变动分析
+        <span class="idx">03</span>规模及<br>变动分析
+      </a>
+      <a href="{{ url_for('module4') }}" class="{{ 'active' if active=='m4' }}">
+        <span class="idx">04</span>公司专题分析
       </a>
     </nav>
     <div class="spacer"></div>
     <div class="tools">
-      <form class="ds-form" method="post" action="{{ url_for('switch_dataset') }}">
-        <label class="ds-label">数据集</label>
-        <select name="id" class="ds-select" onchange="this.form.submit()">
-          {% for ds in DATASETS %}
-          <option value="{{ ds.id }}" {{ 'selected' if ds.id == ACTIVE_ID or (not ACTIVE_ID and loop.first) }}>{{ ds.label }}（{{ ds.source }}）</option>
-          {% endfor %}
-        </select>
-      </form>
-      <form class="up-form" method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data">
-        <label class="up-btn" title="上传新的季度 Excel 数据文件">
-          <span>＋ 上传数据</span>
-          <input type="file" name="file" accept=".xlsx" hidden onchange="this.form.submit()">
-        </label>
-      </form>
+      <span class="ds-label">数据集</span>
+      <span class="ds-value">{{ ACTIVE_LABEL }}</span>
     </div>
     <div class="meta">截至 {{ LATEST_Q }} · 我司 {{ OUR_COMPANY }}</div>
   </header>

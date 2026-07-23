@@ -17,7 +17,7 @@
 {# KPI 行 #}
 <div class="kpi-row" style="margin-bottom:16px;">
   <div class="kpi"><div class="k">样本公司</div><div class="v">{{ kpi.sample }}</div><div class="d">偏股规模前十五大</div></div>
-  <div class="kpi"><div class="k">我司规模排名</div><div class="v">{{ kpi.our_rank }}</div><div class="d">{{ kpi.our_scale }} 亿元 · QoQ {{ "%+d"|format(kpi.our_chg) }}%</div></div>
+  <div class="kpi"><div class="k">我司规模排名</div><div class="v">{{ kpi.our_rank }}</div><div class="d">{{ kpi.our_scale }} 亿元 · YTD {{ "%+d"|format(kpi.our_chg) }}%</div></div>
   <div class="kpi"><div class="k">规模涨幅最大</div><div class="v" style="color:var(--up)">{{ kpi.growth_corp }}</div><div class="d">{{ "%+d"|format(kpi.growth_pct) }}% · {{ kpi.growth_scale }} 亿元</div></div>
   <div class="kpi"><div class="k">{{ LATEST_Q_LABEL }} 业绩夺冠</div><div class="v" style="color:var(--up)">{{ kpi.perf_corp }}</div><div class="d">{{ "%+.2f"|format(kpi.perf_ret*100) if kpi.perf_ret is not none else '—' }}% · 三年 {{ "%.1f"|format(kpi.perf_3y*100) if kpi.perf_3y is not none else '—' }}%</div></div>
 </div>
@@ -34,7 +34,7 @@
         <tr>
           <th class="c">序号</th>
           <th class="l">基金公司</th>
-          <th>{{ PREV_Q_LABEL }}<br>末规模</th>
+          <th>{{ YEAR_START_Q_LABEL }}<br>末规模</th>
           <th>{{ LATEST_Q_LABEL }}<br>末规模</th>
           <th>规模变动<br>幅度</th>
           <th colspan="3" class="c">{{ LATEST_YEAR }}年规模变动拆分（亿元）</th>
@@ -78,16 +78,17 @@
     </table>
   </div>
   <div class="box-foot note">
-    <b>口径说明</b>（demo 第一阶段，数据来自 input_data/竞争对手分析-基础数据20260331.xlsx）：<br>
-    · 规模 = 产品规模表 TOTAL_NAV 按公司求和（全口径，亿元）；业绩 = 权益银河排名 POINTRATE。<br>
-    · 规模变动拆分（demo 近似）：Δ = Q1−Q4；新发 = 当季新成立基金 Q1 规模；业绩贡献 = Q4规模 × 当季收益率；持营 = Δ − 新发 − 业绩贡献。<br>
-    · 与报告 PDF 对比：规模与排名数据一致；拆分项因口径（持营/新发归属规则）差异可能存在偏差，第二阶段对齐。
+    <b>口径说明</b>（YTD 从年初累计，年初 = {{ YEAR_START_Q_LABEL }} 上一年度年末，季末 = {{ LATEST_Q_LABEL }}）：<br>
+    · 规模 = 产品规模表 TOTAL_NAV 按公司求和（全口径，亿元）；业绩 = 权益银河排名 POINTRATE（begin=年内初的 YTD 行）。<br>
+    · 规模变动拆分：Δ = 季末规模 − 年初规模；新发 = 年初不在、最新季在的基金最新季 TOTAL_NAV；业绩贡献 = 年初规模 × 基金 YTD 涨跌幅；持营 = Δ − 新发 − 业绩贡献。<br>
+    · 全部季末时点随激活数据集自适应（年初固定为上一年度 12-31，季末为最新季）。
   </div>
 </div>
 
-{# ===== AI 分析 ===== #}
+{# ===== AI 分析（暂注释，保留代码待恢复）=====
 <div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
   <div style="font-size:12px;font-weight:700;color:var(--bg-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">AI 分析 · 同业业绩及规模概况</div>
   <div style="font-size:13px;color:var(--slate-700);line-height:1.8;white-space:pre-wrap;">{{ ai_insight }}</div>
 </div>
+#}
 {% endblock %}
