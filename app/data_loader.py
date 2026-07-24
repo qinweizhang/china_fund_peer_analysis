@@ -251,7 +251,7 @@ def product_scale(keep_all: bool = False) -> pd.DataFrame:
     raw = raw.iloc[:, :10]  # 前 10 列为有效字段，其后为注释
     raw.columns = [
         "pub_date", "company", "fund_code", "fund_name", "estab_date",
-        "issue_date", "classify_label", "unit_nav", "total_nav", "total_shares",
+        "issue_date", "classify_label", "fuquan_unit_nav", "total_nav", "total_shares",
     ]
     df = raw.copy()
     df["corp"] = df["company"].map(normalize_corp)
@@ -262,7 +262,7 @@ def product_scale(keep_all: bool = False) -> pd.DataFrame:
     df["total_nav"] = pd.to_numeric(df["total_nav"], errors="coerce")
     df["issue_date"] = pd.to_datetime(df["issue_date"], errors="coerce")
     df["estab_date"] = pd.to_datetime(df["estab_date"], errors="coerce")
-    df["unit_nav"] = pd.to_numeric(df["unit_nav"], errors="coerce")
+    df["fuquan_unit_nav"] = pd.to_numeric(df["fuquan_unit_nav"], errors="coerce")
     return df
 
 
@@ -287,21 +287,40 @@ def _post_classify_type(clabel: str) -> str:
 
 
 def post_classify() -> pd.DataFrame:
-    """产品事后分类。
+    """产品事后分类（全基金覆盖）。
 
-    INDUSTRIESNAME 列可能为空，故 INDUSTRIESNAME 改由 CLASSIFY_LABEL 按规则派生
-    （见 _post_classify_type）。TOTAL_NAV 经 left join 取自"产品规模"sheet
-    （按 fund_code + pub_date），更准更全；缺失时回退原表值。
+    INDUSTRIESNAME 列可能为空，故改由 CLASSIFY_LABEL 按规则派生（见 _post_classify_type）。
+    TOTAL_NAV 经 left join 取自"产品规模"sheet（按 fund_code + pub_date），缺失回退原值。
+    事后分类 sheet 未覆盖的基金（产品规模有、事后分类无），用产品规模自身的 CLASSIFY_LABEL
+    按同一规则补全类型，避免出现无类型（"-"）行。
     """
     df = _sheet("产品事后分类").copy()
     df.columns = ["pub_date", "fund_code", "fund_name", "industries_name", "classify_label", "total_nav"]
     df["industries_name"] = df["classify_label"].map(_post_classify_type)
+    df["fund_code"] = df["fund_code"].astype(str)
     # left join 产品规模 的 total_nav（按 fund_code + pub_date）
     df["pub_date"] = pd.to_datetime(df["pub_date"])
     ps = product_scale(keep_all=True)
+    ps["fund_code"] = ps["fund_code"].astype(str)
     psv = ps[["fund_code", "pub_date", "total_nav"]].copy()
     df = df.merge(psv, on=["fund_code", "pub_date"], how="left", suffixes=("_pc", "_ps"))
     df["total_nav"] = df["total_nav_ps"].fillna(df["total_nav_pc"])
+    df = df.drop(columns=["total_nav_pc", "total_nav_ps"])
+    # 补全：产品规模有、事后分类无的基金，用产品规模 classify_label 派生类型
+    have = set(df["fund_code"])
+    ps_last = ps.sort_values("pub_date").groupby("fund_code", as_index=False).last()
+    miss = ps_last[~ps_last["fund_code"].isin(have)]
+    if not miss.empty:
+        miss_df = pd.DataFrame({
+            "pub_date": miss["pub_date"].values,
+            "fund_code": miss["fund_code"].values,
+            "fund_name": miss["fund_name"].values,
+            "industries_name": miss["classify_label"].map(_post_classify_type).values,
+            "classify_label": miss["classify_label"].values,
+            "total_nav": miss["total_nav"].values,
+        })
+        df = pd.concat([df, miss_df], ignore_index=True)
+    return df
     df = df.drop(columns=["total_nav_pc", "total_nav_ps"])
     return df
 

@@ -82,7 +82,7 @@ function renderProfile(htmlId, data) {
 
   // 板块B 表格HTML
   let growthHtml = (data.growth_products||[]).map(r =>
-    `<tr class="${r.corp == US ? 'us' : ''}">
+    `<tr>
       <td class="l">${r.name}</td><td class="num">${r.q4}</td><td class="num">${r.scale}</td>
       <td class="num up">+${r.delta}</td>
       <td class="num ${r.ret>0?'up':'down'}">${r.ret!=null?r.ret+'%':'—'}</td></tr>`).join('');

@@ -61,8 +61,8 @@ def company_overview() -> list[dict]:
     - 规模 = 产品规模表 TOTAL_NAV 按公司求和（亿元，全口径）。
     - Δ = 季末规模 − 年初规模；规模变动幅度 = Δ / 年初规模（年初至今 YTD）。
     - 收益率上涨（业绩贡献）= Σ_f [年初规模_f × 涨跌幅_f]，年初规模取自"产品规模"sheet TOTAL_NAV；
-      涨跌幅优先用"产品复权净值"sheet FUQUAN_UNIT_NAV 的(季末−年初)/年初，复权净值缺失的基金回退用
-      "产品规模"sheet UNIT_NAV 的(季末−年初)/年初。
+      涨跌幅 = "产品规模"sheet FUQUAN_UNIT_NAV 的(季末−年初)/年初（复权净值季末比）。
+      "产品复权净值"sheet 为日频、仅用于最大回撤，不参与此口径。
     - 新发 = 最新季在、年初不在的基金的季末 TOTAL_NAV（YTD 新发）。
     - 持营 = Δ − 收益率上涨 − 新发（倒挤；吸收申赎净额等）。
     - 三项之和 = Δ（季末 − 年初）。
@@ -76,41 +76,28 @@ def company_overview() -> list[dict]:
     LATEST_YEAR = int(LATEST_Q[:4])
     prev_ts, latest_ts = pd.Timestamp(YEAR_START_Q), pd.Timestamp(LATEST_Q)
 
-    # 年初 = 上一年度年末(YEAR_START_Q)，季末 = 最新季度(LATEST_Q)；从产品规模表取每基金 TOTAL_NAV / UNIT_NAV
-    cols = ["fund_code", "corp", "total_nav", "unit_nav"]
+    # 年初 = 上一年度年末(YEAR_START_Q)，季末 = 最新季度(LATEST_Q)；从产品规模表取每基金 TOTAL_NAV / FUQUAN_UNIT_NAV
+    cols = ["fund_code", "corp", "total_nav", "fuquan_unit_nav"]
     prev = ps[ps["pub_date"] == prev_ts][cols]
     late = ps[ps["pub_date"] == latest_ts][cols]
 
-    # 业绩贡献（收益率上涨）：基金级 季初规模 × 涨跌幅；涨跌幅优先用复权净值，缺失则回退单位净值
-    # 复权净值涨跌幅 = (季末 FUQUAN_UNIT_NAV − 季初 FUQUAN_UNIT_NAV) / 季初 FUQUAN_UNIT_NAV （产品复权净值 sheet）
-    # 单位净值回退 = (季末 UNIT_NAV − 季初 UNIT_NAV) / 季初 UNIT_NAV （产品规模 sheet，用于复权净值缺失的基金）
-    nav = dl.nav_adjusted()
-    nav_q = nav[(nav["pub_date"] >= prev_ts) & (nav["pub_date"] <= latest_ts)]
-    nav_q = nav_q.copy()
-    nav_q["fc_key"] = nav_q["fund_code"].map(_fc_key)
-    fuquan_ret: dict[str, float] = {}
-    for fc, sub in nav_q.groupby("fc_key"):
-        vals = sub.sort_values("pub_date")["nav"].values
-        if len(vals) >= 2 and vals[0] > 0:
-            fuquan_ret[fc] = float(vals[-1] / vals[0] - 1)   # (季末−季初)/季初
-    # 单位净值回退涨跌幅
-    unav = prev[["fund_code", "unit_nav"]].merge(
-        late[["fund_code", "unit_nav"]], on="fund_code", how="left", suffixes=("_p", "_l"))
-    unav["fc_key"] = unav["fund_code"].map(_fc_key)
-    unav = unav[(unav["unit_nav_p"].notna()) & (unav["unit_nav_p"] > 0) & (unav["unit_nav_l"].notna())]
-    unit_ret = {r["fc_key"]: float((r["unit_nav_l"] - r["unit_nav_p"]) / r["unit_nav_p"])
-                for _, r in unav.iterrows()}
+    # 业绩贡献（收益率上涨）：基金级 年初规模 × 复权涨跌幅
+    # 复权涨跌幅 = (季末 FUQUAN_UNIT_NAV − 年初 FUQUAN_UNIT_NAV) / 年初 FUQUAN_UNIT_NAV（产品规模 sheet，季末比）
+    fuq = prev[["fund_code", "fuquan_unit_nav"]].merge(
+        late[["fund_code", "fuquan_unit_nav"]], on="fund_code", how="left", suffixes=("_p", "_l"))
+    fuq["fc_key"] = fuq["fund_code"].map(_fc_key)
+    fuq = fuq[(fuq["fuquan_unit_nav_p"].notna()) & (fuq["fuquan_unit_nav_p"] > 0) & (fuq["fuquan_unit_nav_l"].notna())]
+    fuquan_ret = {r["fc_key"]: float(r["fuquan_unit_nav_l"] / r["fuquan_unit_nav_p"] - 1)
+                  for _, r in fuq.iterrows()}
 
     def _pick_ret(fc: str) -> float | None:
-        if fc in fuquan_ret:
-            return fuquan_ret[fc]              # 优先复权净值
-        return unit_ret.get(fc)                # 回退单位净值
+        return fuquan_ret.get(fc)
 
     prev_perf = prev.copy()
     prev_perf["fc_key"] = prev_perf["fund_code"].map(_fc_key)
     prev_perf["fund_ret"] = prev_perf["fc_key"].map(_pick_ret)
     prev_perf = prev_perf[prev_perf["fund_ret"].notna()]
-    prev_perf["perf"] = prev_perf["total_nav"] * prev_perf["fund_ret"]   # 季初规模 × 涨跌幅
+    prev_perf["perf"] = prev_perf["total_nav"] * prev_perf["fund_ret"]   # 年初规模 × 涨跌幅
     perf_by_corp = prev_perf.groupby("corp")["perf"].sum()
 
     # 新发：最新季在、年初不在的基金，取其最新季 TOTAL_NAV（YTD 新发）
@@ -599,11 +586,12 @@ def position_series() -> dict:
 def _fund_returns() -> tuple[pd.DataFrame, pd.DataFrame]:
     """基金逐季收益率与逐季规模（index=fund_code, columns=pub_date Timestamp）。
 
-    收益率由单位净值 pct_change 得到；用于历史季度的业绩贡献估算。
+    收益率由产品规模表的 FUQUAN_UNIT_NAV（复权净值）pct_change 得到，
+    用于各季度规模变动拆分的"收益率上涨"估算。
     """
     ps = dl.product_scale()
     scale_fund = ps.pivot_table(index="fund_code", columns="pub_date", values="total_nav")
-    nav = ps.pivot_table(index="fund_code", columns="pub_date", values="unit_nav").sort_index(axis=1)
+    nav = ps.pivot_table(index="fund_code", columns="pub_date", values="fuquan_unit_nav").sort_index(axis=1)
     ret_fund = nav.pct_change(axis=1)
     return ret_fund, scale_fund
 
@@ -613,8 +601,8 @@ def scale_history() -> dict:
 
     口径（同表 1.1）：
     - 规模 = 产品规模表 TOTAL_NAV 按公司求和（亿元）。季初 = 上一季度末。
-    - 收益率上涨（业绩贡献）= Σ_f [季初规模_f × 涨跌幅_f]，涨跌幅优先用复权净值
-      FUQUAN_UNIT_NAV 的(季末−季初)/季初（仅最新季可得），缺失回退单位净值 UNIT_NAV。
+    - 收益率上涨（业绩贡献）= Σ_f [季初规模_f × 涨跌幅_f]，涨跌幅取自产品规模表
+      FUQUAN_UNIT_NAV 的逐季 pct_change（复权净值季末比，各季可得）。
     - 新发 = 最新季在、上一季不在的基金，取其季末 TOTAL_NAV。
     - 持营 = Δ − 收益率上涨 − 新发（倒挤）。Δ = 季末 − 季初。
     """
@@ -623,20 +611,11 @@ def scale_history() -> dict:
     all_q = all_q[-6:]          # 规模（亿元）列只保留最新 6 个季末，不随新数据叠加
     split_qs = all_q[-5:]
     scale = ps.groupby(["corp", "pub_date"])["total_nav"].sum().unstack("pub_date")
-    ret_fund, scale_fund = _fund_returns()          # unit_nav pct_change, total_nav pivot
+    ret_fund, scale_fund = _fund_returns()   # fuquan_unit_nav pct_change, total_nav pivot
     corp_of_fund = ps.drop_duplicates("fund_code").set_index("fund_code")["corp"].to_dict()
-    # 复权净值涨跌幅（仅最新季，nav_adjusted [PREV_Q, LATEST_Q]）
-    fuquan_ret: dict[str, float] = {}
-    nav = dl.nav_adjusted()
-    nav_q = nav[(nav["pub_date"] >= PREV_Q) & (nav["pub_date"] <= LATEST_Q)].copy()
-    nav_q["fc_key"] = nav_q["fund_code"].map(_fc_key)
-    for fc, sub in nav_q.groupby("fc_key"):
-        vals = sub.sort_values("pub_date")["nav"].values
-        if len(vals) >= 2 and vals[0] > 0:
-            fuquan_ret[fc] = float(vals[-1] / vals[0] - 1)
 
-    def _perf(corp, prev_ts, q_ts, is_latest):
-        """Σ_f 季初规模 × 涨跌幅；涨跌幅 fuquan优先(仅latest)、回退 unit_nav。"""
+    def _perf(corp, prev_ts, q_ts, is_latest=False):
+        """Σ_f 季初规模 × 复权涨跌幅；涨跌幅取自产品规模表 FUQUAN_UNIT_NAV 的 pct_change。"""
         if prev_ts not in scale_fund.columns or q_ts not in ret_fund.columns:
             return None
         funds = [fc for fc in scale_fund.index if corp_of_fund.get(fc) == corp]
@@ -647,9 +626,7 @@ def scale_history() -> dict:
         perf, has = 0.0, False
         for fc in sp.index:
             nv = sp.loc[fc]
-            fr = fuquan_ret.get(_fc_key(fc)) if is_latest else None
-            if fr is None:
-                fr = r_unit.get(fc)
+            fr = r_unit.get(fc)
             if fr is not None and pd.notna(fr) and pd.notna(nv):
                 perf += float(nv) * float(fr)
                 has = True
@@ -709,7 +686,7 @@ def scale_bin_chart() -> dict:
     """图3.1：各规模变化区间下基金数量 + 平均收益率。
 
     口径：仅取最新季与上一季均在的产品（上一季规模>0），按规模变动幅度(%)分箱；
-    柱=基金数量，折线=箱内基金平均季度收益率（unit_nav 基金级口径）。
+    柱=基金数量，折线=箱内基金平均季度收益率（fuquan_unit_nav 基金级口径）。
     """
     ps = dl.product_scale()
     _, LATEST_Q, PREV_Q = _q()
@@ -761,8 +738,8 @@ def type_scale_change() -> dict:
 def product_top10() -> tuple[list[dict], list[dict]]:
     """一季度规模增长 TOP10 / 缩减 TOP10 产品。
 
-    口径（demo 近似）：按 2025Q4→2026Q1 规模变动排序。
-    收益率与最大回撤基于产品复权净值表计算（仅在该表内有净值的产品）。
+    口径（demo 近似）：按 PREV_Q→LATEST_Q 规模变动排序。
+    收益率取自产品规模表 FUQUAN_UNIT_NAV 的季末比；最大回撤取自产品复权净值表日频序列。
     """
     ps = dl.product_scale()
     pc = dl.post_classify()
@@ -770,25 +747,35 @@ def product_top10() -> tuple[list[dict], list[dict]]:
     # 事后分类：取最新一条作为产品类型
     pc_latest = pc.sort_values("pub_date").groupby("fund_code").last()["industries_name"].to_dict()
 
+    # 收益率：产品规模表 FUQUAN_UNIT_NAV 季末比（PREV_Q→LATEST_Q）
+    fq_prev = ps[ps["pub_date"] == pd.Timestamp(PREV_Q)].set_index("fund_code")["fuquan_unit_nav"]
+    fq_late = ps[ps["pub_date"] == pd.Timestamp(LATEST_Q)].set_index("fund_code")["fuquan_unit_nav"]
+    common_fq = fq_prev.index.intersection(fq_late.index)
+    fuq_ret = {}
+    for fc in common_fq:
+        a, b = fq_prev.loc[fc], fq_late.loc[fc]
+        if pd.notna(a) and a > 0 and pd.notna(b):
+            fuq_ret[_fc_key(fc)] = float(b / a - 1)
+
+    # 最大回撤：产品复权净值表日频（仅该季区间）
     nav = dl.nav_adjusted()
-    # 仅取最新季度区间内净值用于计算收益率与回撤，按归一化基金代码分组
     nav_q1 = nav[(nav["pub_date"] >= PREV_Q) & (nav["pub_date"] <= LATEST_Q)].copy()
     nav_q1["fc_key"] = nav_q1["fund_code"].map(_fc_key)
     nav_groups = {k: g.sort_values("pub_date")["nav"].values for k, g in nav_q1.groupby("fc_key")}
 
     def _fund_metrics(fund_code: str) -> tuple[float | None, float | None]:
-        vals = nav_groups.get(_fc_key(fund_code))
-        if vals is None or len(vals) < 2:
-            return None, None
-        ret = vals[-1] / vals[0] - 1
-        peak = vals[0]
-        max_dd = 0.0
-        for v in vals:
-            if v > peak:
-                peak = v
-            dd = v / peak - 1
-            if dd < max_dd:
-                max_dd = dd
+        k = _fc_key(fund_code)
+        ret = fuq_ret.get(k)
+        max_dd = None
+        vals = nav_groups.get(k)
+        if vals is not None and len(vals) >= 2:
+            peak = vals[0]; max_dd = 0.0
+            for v in vals:
+                if v > peak:
+                    peak = v
+                dd = v / peak - 1
+                if dd < max_dd:
+                    max_dd = dd
         return ret, max_dd
 
     q4 = ps[ps["pub_date"] == pd.Timestamp(PREV_Q)].set_index("fund_code")["total_nav"]
@@ -825,23 +812,34 @@ def product_top10() -> tuple[list[dict], list[dict]]:
 def return_vs_drawdown() -> list[dict]:
     """各公司最新季 规模加权收益率 vs 规模加权最大回撤 散点。
 
-    口径（期初规模加权，基金级，两轴同池）：
+    口径（期初规模加权，基金级）：
       权重 w_f = 该基金期初规模 = 产品规模表 PREV_Q 行的 TOTAL_NAV。
-      基金收益 ret_f = nav_末 / nav_初 − 1（最新季区间复权净值首末比）。
-      基金回撤 max_dd_f = min_t (nav_t / peak_t − 1)，peak_t 为截至 t 的历史最高。
+      基金收益 ret_f = FUQUAN_UNIT_NAV(季末) / FUQUAN_UNIT_NAV(期初) − 1（产品规模表季末比）。
+      基金回撤 max_dd_f = min_t (nav_t / peak_t − 1)，取自产品复权净值表日频序列。
       公司加权收益率 ret_c = Σ(ret_f · w_f) / Σ w_f
       公司加权回撤 dd_c    = Σ(max_dd_f · w_f) / Σ w_f
-    ret_f 与 max_dd_f 取自同一只基金同一区间序列，成分股一致；仅含期初规模>0 的产品。
+    仅含期初规模>0 且 ret_f 与 max_dd_f 均可得的产品（保证两轴同池、成分一致）。
     """
     _, LATEST_Q, PREV_Q = _q()
-    nav = dl.nav_adjusted()
-    nav_q1 = nav[(nav["pub_date"] >= PREV_Q) & (nav["pub_date"] <= LATEST_Q)].copy()
-
     ps = dl.product_scale()
+    # 收益率：产品规模表 FUQUAN_UNIT_NAV 季末比
+    fq_prev = ps[ps["pub_date"] == pd.Timestamp(PREV_Q)].set_index("fund_code")["fuquan_unit_nav"]
+    fq_late = ps[ps["pub_date"] == pd.Timestamp(LATEST_Q)].set_index("fund_code")["fuquan_unit_nav"]
+    common_fq = fq_prev.index.intersection(fq_late.index)
+    fuq_ret = {}
+    for fc in common_fq:
+        a, b = fq_prev.loc[fc], fq_late.loc[fc]
+        if pd.notna(a) and a > 0 and pd.notna(b):
+            fuq_ret[_fc_key(fc)] = float(b / a - 1)
+
     prev_nav = ps[ps["pub_date"] == pd.Timestamp(PREV_Q)].set_index("fund_code")["total_nav"]
     fund_nav = {_fc_key(fc): float(v) for fc, v in prev_nav.items() if pd.notna(v) and v > 0}
     fund_corp = {_fc_key(fc): corp for fc, corp in
                  ps.drop_duplicates("fund_code").set_index("fund_code")["corp"].items()}
+
+    # 最大回撤：产品复权净值表日频
+    nav = dl.nav_adjusted()
+    nav_q1 = nav[(nav["pub_date"] >= PREV_Q) & (nav["pub_date"] <= LATEST_Q)].copy()
     nav_q1["fc_key"] = nav_q1["fund_code"].map(_fc_key)
 
     corp_w = defaultdict(lambda: {"w_dd": 0.0, "w_ret": 0.0, "w": 0.0})
@@ -852,10 +850,12 @@ def return_vs_drawdown() -> list[dict]:
         w = fund_nav.get(fc)
         if not w or w <= 0:
             continue
+        ret_f = fuq_ret.get(fc)            # 收益率取自 fuquan 季末比
+        if ret_f is None:
+            continue                       # 要求 ret 与 max_dd 都有，保证同池
         vals = sub.sort_values("pub_date")["nav"].values
         if len(vals) < 2:
             continue
-        ret_f = vals[-1] / vals[0] - 1
         peak = vals[0]; max_dd = 0.0
         for v in vals:
             if v > peak: peak = v
@@ -1038,22 +1038,30 @@ def _company_profile_internal(corp, ps, pc, nav, LATEST_Q, PREV_Q) -> dict:
     sub["delta_pct"] = sub.apply(
         lambda r: round(float(r["delta"]) / r["q4_scale"] * 100, 2) if r["q4_scale"] and r["q4_scale"] > 0 else None, axis=1)
 
-    # 复权净值算收益率和最大回撤（最新季区间）
+    # 收益率取自产品规模表 FUQUAN_UNIT_NAV 季末比；最大回撤取自产品复权净值表日频
+    prev_ts, late_ts = pd.Timestamp(PREV_Q), pd.Timestamp(LATEST_Q)
+    fq_prev = ps[(ps["corp"] == corp) & (ps["pub_date"] == prev_ts)].set_index("fund_code")["fuquan_unit_nav"]
+    fq_late = ps[(ps["corp"] == corp) & (ps["pub_date"] == late_ts)].set_index("fund_code")["fuquan_unit_nav"]
+    fuq_ret = {}
+    for fc in fq_prev.index.intersection(fq_late.index):
+        a, b = fq_prev.loc[fc], fq_late.loc[fc]
+        if pd.notna(a) and a > 0 and pd.notna(b):
+            fuq_ret[_fc_key(fc)] = float(b / a - 1)
+
     nav_q = nav[(nav["pub_date"] >= PREV_Q) & (nav["pub_date"] <= LATEST_Q)].copy()
     nav_q["fc_key"] = nav_q["fund_code"].map(_fc_key)
-    fund_metrics = {}
+    max_dd_map = {}
     for fc, s in nav_q.groupby("fc_key"):
         vals = s.sort_values("pub_date")["nav"].values
         if len(vals) >= 2 and vals[0] > 0:
-            ret = float(vals[-1] / vals[0] - 1)
             peak = vals[0]; max_dd = 0.0
             for v in vals:
                 if v > peak: peak = v
                 dd = v / peak - 1
                 if dd < max_dd: max_dd = dd
-            fund_metrics[fc] = {"ret": ret, "dd": max_dd}
-    sub["ret"] = sub["fund_code"].map(_fc_key).map(lambda k: fund_metrics.get(k, {}).get("ret"))
-    sub["dd"] = sub["fund_code"].map(_fc_key).map(lambda k: fund_metrics.get(k, {}).get("dd"))
+            max_dd_map[fc] = max_dd
+    sub["ret"] = sub["fund_code"].map(_fc_key).map(lambda k: fuq_ret.get(k))
+    sub["dd"] = sub["fund_code"].map(_fc_key).map(lambda k: max_dd_map.get(k))
 
     growth = sub[sub["q4_scale"] > 0].sort_values("delta", ascending=False).head(10)
     def _prod_row(r):
