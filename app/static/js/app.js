@@ -72,6 +72,48 @@ function renderTypeDonut(elId, data) {
   window.addEventListener("resize", () => chart.resize());
 }
 
+/* 板块A：六大板块构成环形（基于持仓明细 pos_mkt_val 按行业→板块；内圈=选中公司，外圈=工银瑞信） */
+function renderBoardDonut(elId, data) {
+  const el = document.getElementById(elId);
+  if (!el || !data || !data.board_composition) return;
+  const usComp = data.us_board_composition || [];
+  const chart = echarts.init(el, null, { renderer: "canvas" });
+  const series = [{
+    name: "选中公司",
+    type: "pie", radius: ["35%", "60%"], center: ["50%", "55%"],
+    data: data.board_composition.map((b, i) => ({
+      name: b.board, value: b.scale,
+      itemStyle: { color: PALETTE[i % PALETTE.length] },
+    })),
+    label: { fontSize: 10, color: ADLS.slate500, formatter: "{b}\n{d}%" },
+    itemStyle: { borderColor: ADLS.bg, borderWidth: 2 },
+  }];
+  if (usComp.length) {
+    series.push({
+      name: "工银瑞信",
+      type: "pie", radius: ["66%", "80%"], center: ["50%", "55%"],
+      data: usComp.map((b, i) => ({
+        name: b.board, value: b.scale,
+        itemStyle: { color: PALETTE[i % PALETTE.length], opacity: 0.45 },
+      })),
+      label: { show: false },
+      itemStyle: { borderColor: ADLS.bg, borderWidth: 2 },
+      tooltip: { formatter: (p) => `工银瑞信<br/>${p.name}: ${p.value}亿 (${p.percent}%)` },
+    });
+  }
+  chart.setOption({
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "item", backgroundColor: ADLS.bg, borderColor: ADLS.slate300,
+      textStyle: { color: ADLS.slate700, fontSize: 11 },
+      extraCssText: "box-shadow:none;border-radius:0;",
+    },
+    legend: { type: "plain", textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
+    series: series,
+  });
+  window.addEventListener("resize", () => chart.resize());
+}
+
 function renderProfile(htmlId, data) {
   const el = document.getElementById(htmlId);
   if (!el || !data) return;
@@ -102,7 +144,7 @@ function renderProfile(htmlId, data) {
       <div class="kpi"><div class="k">CR5（前5产品）</div><div class="v ${cr5Cls}">${c.cr5||'—'}%</div><div class="d">头部集中度</div></div>
       <div class="kpi"><div class="k">CR10（前10产品）</div><div class="v">${c.cr10||'—'}%</div><div class="d">产品分散度</div></div>
     </div>
-    <div class="grid grid-2" style="margin-bottom:16px;">
+    <div class="grid grid-3" style="margin-bottom:16px;">
       <div class="box">
         <div class="box-head"><span class="title">Top15 产品规模</span><span class="badge">A · BAR</span></div>
         <div class="box-body padded"><div id="cp-bar" class="chart chart-lg"></div></div>
@@ -110,6 +152,10 @@ function renderProfile(htmlId, data) {
       <div class="box">
         <div class="box-head"><span class="title">产品类型构成（事后分类）</span><span class="badge">A · DONUT</span></div>
         <div class="box-body padded"><div id="cp-donut" class="chart chart-lg"></div></div>
+      </div>
+      <div class="box">
+        <div class="box-head"><span class="title">六大板块构成</span><span class="badge">A · BOARD</span></div>
+        <div class="box-body padded"><div id="cp-board" class="chart chart-lg"></div></div>
       </div>
     </div>
     ${data.ai_pa ? `<div style="background:#F5E9D3; border:1px solid var(--bg-light); padding:16px 20px; margin-bottom:16px;">
@@ -200,6 +246,7 @@ function renderProfile(htmlId, data) {
   // 渲染图表
   renderProductBar("cp-bar", data);
   renderTypeDonut("cp-donut", data);
+  renderBoardDonut("cp-board", data);
   renderGrowthScatter("cp-growth-scatter", data);
   renderStackedArea("cp-layout", data.layout, US);
   if (data.us_layout) renderStackedArea("cp-layout-us", data.us_layout, US);
@@ -248,18 +295,20 @@ function renderGrowthScatter(elId, data) {
   if (!el || !data || !data.scatter_points) return;
   const usPts = data.us_scatter_points || [];
   const chart = echarts.init(el, null, { renderer: "canvas" });
+  // 点大小按规模(亿)开方缩放：规模越大点越大，差异适度收敛
+  const _sz = (scale) => Math.max(7, Math.sqrt(Math.max(0, scale || 0)) * 1.4);
   const series = [{
     name: data.corp + " 产品",
-    type: "scatter", symbolSize: 8,
-    data: data.scatter_points.map(p => ({ value: [p.dd, p.ret], name: p.name })),
+    type: "scatter", symbolSize: (val) => _sz(val[2]),
+    data: data.scatter_points.map(p => ({ value: [p.dd, p.ret, p.scale], name: p.name })),
     itemStyle: { color: ADLS.primary },
   }];
   // 工银瑞信对比点（红色，始终显示）
   if (usPts.length) {
     series.push({
       name: "工银瑞信产品",
-      type: "scatter", symbolSize: 8,
-      data: usPts.map(p => ({ value: [p.dd, p.ret], name: p.name })),
+      type: "scatter", symbolSize: (val) => _sz(val[2]),
+      data: usPts.map(p => ({ value: [p.dd, p.ret, p.scale], name: p.name })),
       itemStyle: { color: ADLS.up },
     });
   }
@@ -270,7 +319,7 @@ function renderGrowthScatter(elId, data) {
       trigger: "item", backgroundColor: ADLS.bg, borderColor: ADLS.slate300,
       textStyle: { color: ADLS.slate700, fontSize: 11 },
       extraCssText: "box-shadow:none;border-radius:0;",
-      formatter: (p) => `${p.seriesName}<br/>${p.data.name}<br/>最大回撤: ${p.value[0]}%<br/>收益率: ${p.value[1]}%`,
+      formatter: (p) => `${p.seriesName}<br/>${p.data.name}<br/>规模: ${(p.value[2] || 0)}亿<br/>最大回撤: ${p.value[0]}%<br/>收益率: ${p.value[1]}%`,
     },
     legend: { textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
     xAxis: { type: "value", name: "最大回撤(%)", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },

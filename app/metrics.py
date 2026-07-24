@@ -1031,6 +1031,17 @@ def _company_profile_internal(corp, ps, pc, nav, LATEST_Q, PREV_Q) -> dict:
         "pct": round(float(v) / total * 100, 2) if total else 0,
     } for t, v in grp.items()]
 
+    # 六大板块构成（基于持仓明细 pos_mkt_val 按行业→板块汇总，占六板块合计 100%）
+    board_composition = []
+    balloc = _board_allocation(LATEST_Q, exclude_industry=False)
+    bsub = balloc[balloc["corp"] == corp]
+    if not bsub.empty:
+        bg = bsub.groupby("board")["pos_mkt_val"].sum().reindex(BOARDS).dropna()
+        btotal = float(bg.sum())
+        if btotal > 0:
+            board_composition = [{"board": b, "scale": round(float(bg[b]) / 1e8, 2),
+                                  "pct": round(float(bg[b]) / btotal * 100, 2)} for b in bg.index]
+
     # ===== 板块B：产品增长来源 =====
     q4_map = sub_q4.set_index("fund_code")["total_nav"]
     sub["q4_scale"] = sub["fund_code"].map(q4_map).fillna(0)
@@ -1075,10 +1086,11 @@ def _company_profile_internal(corp, ps, pc, nav, LATEST_Q, PREV_Q) -> dict:
         }
     growth_products = [_prod_row(r) for _, r in growth.iterrows()]
 
-    scatter_data = sub[(sub["q4_scale"] > 0) & sub["ret"].notna() & sub["dd"].notna()][["fund_name", "ret", "dd"]].copy()
+    scatter_data = sub[(sub["q4_scale"] > 0) & sub["ret"].notna() & sub["dd"].notna()][["fund_name", "ret", "dd", "total_nav"]].copy()
     scatter_points = [{"name": r["fund_name"],
                        "ret": round(float(r["ret"]) * 100, 2),
-                       "dd": round(float(r["dd"]) * 100, 2)}
+                       "dd": round(float(r["dd"]) * 100, 2),
+                       "scale": round(float(r["total_nav"]), 2)}
                       for _, r in scatter_data.iterrows()]
 
     # ===== 板块C：产品布局分析 =====
@@ -1159,6 +1171,7 @@ def _company_profile_internal(corp, ps, pc, nav, LATEST_Q, PREV_Q) -> dict:
         "top_products": top_products,
         "concentration": concentration,
         "type_composition": type_composition,
+        "board_composition": board_composition,
         # 板块B
         "growth_products": growth_products,
         "scatter_points": scatter_points,
@@ -1173,6 +1186,7 @@ def _company_profile_internal(corp, ps, pc, nav, LATEST_Q, PREV_Q) -> dict:
         "insights": insights,
         # 工银瑞信对比
         "us_type_composition": us_data.get("type_composition") if us_data else type_composition,
+        "us_board_composition": us_data.get("board_composition") if us_data else board_composition,
         "us_scatter_points": us_data.get("scatter_points") if us_data else scatter_points,
         "us_layout": us_data.get("layout") if us_data else layout,
     }
