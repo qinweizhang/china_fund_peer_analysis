@@ -1054,10 +1054,12 @@ def _company_profile_internal(corp, ps, pc, nav, LATEST_Q, PREV_Q) -> dict:
     fq_prev = ps[(ps["corp"] == corp) & (ps["pub_date"] == prev_ts)].set_index("fund_code")["fuquan_unit_nav"]
     fq_late = ps[(ps["corp"] == corp) & (ps["pub_date"] == late_ts)].set_index("fund_code")["fuquan_unit_nav"]
     fuq_ret = {}
+    fq_pair = {}
     for fc in fq_prev.index.intersection(fq_late.index):
         a, b = fq_prev.loc[fc], fq_late.loc[fc]
         if pd.notna(a) and a > 0 and pd.notna(b):
             fuq_ret[_fc_key(fc)] = float(b / a - 1)
+            fq_pair[_fc_key(fc)] = (float(a), float(b))
 
     nav_q = nav[(nav["pub_date"] >= PREV_Q) & (nav["pub_date"] <= LATEST_Q)].copy()
     nav_q["fc_key"] = nav_q["fund_code"].map(_fc_key)
@@ -1071,8 +1073,19 @@ def _company_profile_internal(corp, ps, pc, nav, LATEST_Q, PREV_Q) -> dict:
                 dd = v / peak - 1
                 if dd < max_dd: max_dd = dd
             max_dd_map[fc] = max_dd
+
+    # 最大回撤回退：日频净值缺失的基金（如华商等未覆盖公司），用季末 fuquan 估算
+    # PREV→LATEST 区间回撤（季末下跌则为该跌幅，否则 0），保证散点可见
+    def _dd(k):
+        if k in max_dd_map:
+            return max_dd_map[k]
+        pr = fq_pair.get(k)
+        if not pr:
+            return None
+        a, b = pr
+        return (b / a - 1) if b < a else 0.0
     sub["ret"] = sub["fund_code"].map(_fc_key).map(lambda k: fuq_ret.get(k))
-    sub["dd"] = sub["fund_code"].map(_fc_key).map(lambda k: max_dd_map.get(k))
+    sub["dd"] = sub["fund_code"].map(_fc_key).map(_dd)
 
     growth = sub[sub["q4_scale"] > 0].sort_values("delta", ascending=False).head(10)
     def _prod_row(r):
