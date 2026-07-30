@@ -76,33 +76,30 @@ def company_overview() -> list[dict]:
     LATEST_YEAR = int(LATEST_Q[:4])
     prev_ts, latest_ts = pd.Timestamp(YEAR_START_Q), pd.Timestamp(LATEST_Q)
 
-    # 年初 = 上一年度年末(YEAR_START_Q)，季末 = 最新季度(LATEST_Q)；从产品规模表取每基金 TOTAL_NAV / FUQUAN_UNIT_NAV
-    cols = ["fund_code", "corp", "total_nav", "fuquan_unit_nav"]
+    # 年初 = 上一年度年末(YEAR_START_Q)，季末 = 最新季度(LATEST_Q)；从产品规模表取每基金 TOTAL_NAV
+    cols = ["fund_code", "corp", "total_nav"]
     prev = ps[ps["pub_date"] == prev_ts][cols]
     late = ps[ps["pub_date"] == latest_ts][cols]
 
-    # 业绩贡献（收益率上涨）：基金级 年初规模 × 复权涨跌幅
-    # 复权涨跌幅 = (季末 FUQUAN_UNIT_NAV − 年初 FUQUAN_UNIT_NAV) / 年初 FUQUAN_UNIT_NAV（产品规模 sheet，季末比）
-    fuq = prev[["fund_code", "fuquan_unit_nav"]].merge(
-        late[["fund_code", "fuquan_unit_nav"]], on="fund_code", how="left", suffixes=("_p", "_l"))
-    fuq["fc_key"] = fuq["fund_code"].map(_fc_key)
-    fuq = fuq[(fuq["fuquan_unit_nav_p"].notna()) & (fuq["fuquan_unit_nav_p"] > 0) & (fuq["fuquan_unit_nav_l"].notna())]
-    fuquan_ret = {r["fc_key"]: float(r["fuquan_unit_nav_l"] / r["fuquan_unit_nav_p"] - 1)
-                  for _, r in fuq.iterrows()}
+    # 规模变动拆分（收益率上涨/持营/新发）= 表3.1 逐季拆分在 YTD 区间[年初,季末]的加和
+    # （3.1 逐季口径为准，1.1 累计核对之）
+    sh = scale_history()
+    sh_row = {r["corp"]: r for r in sh["rows"]}
+    all_q = sh["quarters"]
+    split_qs = sh["split_quarters"]
+    # YTD 拆分季度：该季季初(=all_q 中其前一季) >= 年初
+    ytd_qs = [q for q in split_qs if all_q[all_q.index(q) - 1] >= YEAR_START_Q]
 
-    def _pick_ret(fc: str) -> float | None:
-        return fuquan_ret.get(fc)
-
-    prev_perf = prev.copy()
-    prev_perf["fc_key"] = prev_perf["fund_code"].map(_fc_key)
-    prev_perf["fund_ret"] = prev_perf["fc_key"].map(_pick_ret)
-    prev_perf = prev_perf[prev_perf["fund_ret"].notna()]
-    prev_perf["perf"] = prev_perf["total_nav"] * prev_perf["fund_ret"]   # 年初规模 × 涨跌幅
-    perf_by_corp = prev_perf.groupby("corp")["perf"].sum()
-
-    # 新发：最新季在、年初不在的基金，取其最新季 TOTAL_NAV（YTD 新发）
-    new_funds = late[~late["fund_code"].isin(prev["fund_code"])]
-    new_by_corp = new_funds.groupby("corp")["total_nav"].sum()
+    def _ytd_split(corp):
+        """3.1 逐季拆分的 YTD 原始值加和（未取整，供 1.1 最后统一四舍五入）。"""
+        r = sh_row.get(corp)
+        if not r:
+            return 0.0, 0.0, 0.0
+        sp = r["splits"]
+        perf = sum(sp[q]["perf_raw"] for q in ytd_qs if q in sp and sp[q]["perf_raw"] is not None)
+        new = sum(sp[q]["new_raw"] for q in ytd_qs if q in sp and sp[q]["new_raw"] is not None)
+        hold = sum(sp[q]["holding_raw"] for q in ytd_qs if q in sp and sp[q]["holding_raw"] is not None)
+        return perf, hold, new
 
     # 公司年初/季末规模（亿元）= 旗下全部基金 TOTAL_NAV 求和；Δ = 季末 − 年初
     prev_sum = prev.groupby("corp")["total_nav"].sum()
@@ -126,20 +123,22 @@ def company_overview() -> list[dict]:
             continue
         delta = q1 - q4                       # 规模变化（亿元）
         chg_pct = (delta / q4) * 100          # 规模变动幅度
-        perf = float(perf_by_corp.get(corp, 0) or 0)        # 收益率上涨（业绩贡献）
-        new = float(new_by_corp.get(corp, 0) or 0)          # 新发
-        holding = delta - perf - new                         # 持营（倒挤）
+        # 收益率上涨/新发 = 3.1 逐季拆分 YTD 加和；持营倒挤 = (季末−年初) − 收益率上涨 − 新发
+        # 保证三项之和恒等于规模变化（消除各分项取整叠加的 1~2 误差）
+        perf, _, new = _ytd_split(corp)
+        scale_q4, scale_q1 = round(q4), round(q1)
+        holding = (scale_q1 - scale_q4) - round(perf) - round(new)
         ret_q, rk_q, tot_q = _ret_by_begin(corp, f"{LATEST_YEAR}-01-01")   # 当年YTD收益率（银河）
         begin_3y = f"{LATEST_YEAR - 2}-01-01"
         ret_3y, rk3_rank, tot_3y = _ret_by_begin(corp, begin_3y)
         rows.append({
             "corp": corp,
             "is_us": corp == dl.OUR_COMPANY,
-            "scale_q4": round(q4) if q4 is not None else None,
-            "scale_q1": round(q1),
+            "scale_q4": scale_q4,
+            "scale_q1": scale_q1,
             "chg_pct": round(chg_pct),   # 规模变动幅度：四舍五入到整数（对齐报告）
             "perf_contrib": round(perf),
-            "holding": round(holding),
+            "holding": holding,
             "new_issue": round(new),
             "ret_q": ret_q,
             "rank_q": f"{int(rk_q)}/{int(tot_q)}" if rk_q and tot_q else "-",
@@ -410,7 +409,8 @@ def board_change_table() -> list[dict]:
     """六板块 + A股/港股 的剔除涨跌幅占比变化 + 行业调整比例；末行追加工银瑞信（剔除行业基金）。
 
     计算顺序：先在(市场,行业)层面算剔除变动(每个行业用自己的行业收益率 iret)，
-    再按 bmap 汇总(签名和)到六大板块 / A股/港股。行业涨跌幅与公司持仓无关。"""
+    再按 bmap 汇总(签名和)到六大板块 / A股/港股。六板块=A股该板块+港股该板块(=2.4加和)；
+    分母为该公司股票市值合计（与2.1板块占比口径一致），A股/港股行业收益率各自适用、不混用。"""
     _, LATEST_Q, PREV_Q = _q()
     cur = _board_allocation(LATEST_Q); prev = _board_allocation(PREV_Q)
     cur_e = _board_allocation(LATEST_Q, True); prev_e = _board_allocation(PREV_Q, True)
@@ -449,7 +449,8 @@ def board_change_table() -> list[dict]:
 # ---- 表 2.4：基金公司较上季度板块变化（A股、港股拆分）----
 def board_change_table_by_market() -> list[dict]:
     """A股/港股各六板块的剔除涨跌幅占比变化；末两行追加 工银瑞信（剔除行业基金）/ 板块涨跌幅。
-    行业层面计算: 先在(市场,行业)层面算剔除变动, 再按 bmap 汇总到(市场,板块)。"""
+    行业层面计算: 先在(市场,行业)层面算剔除变动, 再按 bmap 汇总到(市场,板块)。
+    分母为该公司股票市值合计；A股/港股行业收益率各自适用。2.3六板块=A股+港股(本表加和)。"""
     _, LATEST_Q, PREV_Q = _q()
     cur = _board_allocation(LATEST_Q).copy(); prev = _board_allocation(PREV_Q).copy()
     cur_e = _board_allocation(LATEST_Q, True).copy(); prev_e = _board_allocation(PREV_Q, True).copy()
@@ -494,16 +495,20 @@ def top10_holdings() -> list[dict]:
 
     口径（demo 近似）：按公司持仓明细市值降序取前 10；收益来自个股收益率表。
     报告口径为“各基金前十大重仓股加总”，本 demo 以公司持仓明细直接取。
-    新进重仓：当季 top-10 中、上一季度(PREV_Q)公司持仓明细里未出现的个股（新建立的重仓仓位），
+    新进重仓：当季 top-10 中、上一季度(PREV_Q)不在该公司前十大重仓股的个股
+    （含上季排名 11+ 或未持有），即新进入前十的重仓仓位，模板中标红。
     模板中标红显示。仅有单季数据时无法判定，全部视为非新进。
     """
     _, LATEST_Q, PREV_Q = _q()
     sret = dl.stock_return()
 
     def _prev_secs(prev_hold: pd.DataFrame, corp: str) -> set[str]:
+        """上一季度该公司前十大重仓股 sec_no 集合（按 pos_mkt_val 降序取前 10）。
+        新进重仓判定：当季 top-10 中、上一季不在 top-10（含排名 11+ 或未持有）即标红。"""
         if prev_hold is None or prev_hold.empty:
             return set()
-        return set(prev_hold[prev_hold["corp"] == corp]["sec_no"].astype(str))
+        sub = prev_hold[prev_hold["corp"] == corp].sort_values("pos_mkt_val", ascending=False).head(10)
+        return set(sub["sec_no"].astype(str))
 
     def _row_for(hold: pd.DataFrame, corp: str, prev_hold: pd.DataFrame,
                  label: str | None = None, is_excl: bool = False) -> dict | None:
@@ -665,15 +670,18 @@ def scale_history() -> dict:
             is_latest = (qstr == LATEST_Q)
             new = _new(corp, pd.Timestamp(pstr), pd.Timestamp(qstr))
             if s_q is None or s_p is None:
-                splits[qstr] = {"perf": None, "holding": None, "new": round(new)}
+                splits[qstr] = {"perf": None, "holding": None, "new": round(new),
+                                "perf_raw": None, "holding_raw": None, "new_raw": float(new)}
                 continue
             delta = s_q - s_p
             perf = _perf(corp, pd.Timestamp(pstr), pd.Timestamp(qstr), is_latest)
             if perf is None:
-                splits[qstr] = {"perf": None, "holding": None, "new": round(new)}
+                splits[qstr] = {"perf": None, "holding": None, "new": round(new),
+                                "perf_raw": None, "holding_raw": None, "new_raw": float(new)}
                 continue
             hold = delta - new - perf
-            splits[qstr] = {"perf": round(perf), "holding": round(hold), "new": round(new)}
+            splits[qstr] = {"perf": round(perf), "holding": round(hold), "new": round(new),
+                            "perf_raw": float(perf), "holding_raw": float(hold), "new_raw": float(new)}
         rows.append({
             "corp": corp, "is_us": corp == dl.OUR_COMPANY,
             "quarters": q_series, "chg_pct": chg, "splits": splits,
@@ -701,9 +709,8 @@ def scale_bin_chart() -> dict:
     chg = ((q1.loc[common] - q4.loc[common]) / q4.loc[common] * 100)
     fret = ret_fund[latest_ts] if latest_ts in ret_fund.columns else pd.Series(dtype=float)
 
-    bins = [-1e9, -50, -30, -10, 0, 10, 30, 50, 100, 1e9]
-    labels = ["<-50%", "-50~-30%", "-30~-10%", "-10~0%", "0~10%",
-              "10~30%", "30~50%", "50~100%", ">100%"]
+    bins = [-1e9, -30, -10, 0, 10, 50, 100, 1e9]
+    labels = ["<-30%", "-30~-10%", "-10~0%", "0~10%", "10~50%", "50~100%", ">100%"]
     cat = pd.cut(chg, bins=bins, labels=labels, right=True, include_lowest=True)
     counts, rets = [], []
     for lab in labels:
@@ -792,11 +799,17 @@ def product_top10() -> tuple[list[dict], list[dict]]:
 
     def _build(fc) -> dict:
         ret, dd = _fund_metrics(fc)
+        _type = pc_key_map.get(_fc_key(fc), "-")
+        # 本次(2026Q2)报告手动覆盖：富国全球科技互联网(QDII)(A类, fund_code=100055)
+        # 数据标为宽基，但本报告希望显示为 QDII行业基金。仅此一处、仅本季(LATEST_Q=2026-06-30)，
+        # 非通用规则，不影响其他分析；后续季度/其他基金仍按原逻辑。
+        if str(fc) == "100055" and LATEST_Q == "2026-06-30":
+            _type = "QDII行业基金"
         return {
             "corp": corp_map.get(fc, ""),
             "name": name_map.get(fc, ""),
             "estab": str(estab_map.get(fc, ""))[:10] if pd.notna(estab_map.get(fc)) else "",
-            "type": pc_key_map.get(_fc_key(fc), "-"),
+            "type": _type,
             "delta": round(float(delta.loc[fc]), 1),
             "q4": round(float(q4.loc[fc]), 1),
             "q1": round(float(q1.loc[fc]), 1),

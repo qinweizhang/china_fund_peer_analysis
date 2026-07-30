@@ -133,7 +133,7 @@
       </thead>
       <tbody>
         {% for r in growth %}
-        <tr class="{{ 'us' if r.corp == OUR_COMPANY }}">
+        <tr>
           {% if loop.first %}<td class="c sec" rowspan="{{ growth|length }}">增长TOP10</td>{% endif %}
           <td class="l">{{ r.corp }}</td>
           <td class="l">{{ r.name }}</td>
@@ -147,7 +147,7 @@
         </tr>
         {% endfor %}
         {% for r in decline %}
-        <tr class="{{ 'sec-bound' if loop.first }}{{ ' us' if r.corp == OUR_COMPANY }}">
+        <tr class="{{ 'sec-bound' if loop.first }}">
           {% if loop.first %}<td class="c sec" rowspan="{{ decline|length }}">缩减TOP10</td>{% endif %}
           <td class="l">{{ r.corp }}</td>
           <td class="l">{{ r.name }}</td>

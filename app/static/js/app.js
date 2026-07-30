@@ -575,6 +575,8 @@ function renderBinBarLine(elId, data) {
   const el = document.getElementById(elId);
   if (!el || !data || !data.labels) return;
   const chart = echarts.init(el, null, { renderer: "canvas" });
+  // 左右 y 轴对齐：左(基金数量) 0~450 与 右(平均收益率%) -10~80 线性对应
+  // 数量 50↔0%、100↔10%、200↔30%、300↔50%、400↔70%、450↔80%（每1%占5个数量）
   chart.setOption({
     backgroundColor: "transparent",
     grid: { left: 48, right: 56, top: 30, bottom: 60 },
@@ -583,11 +585,13 @@ function renderBinBarLine(elId, data) {
       textStyle: { color: ADLS.slate700, fontSize: 11 },
       extraCssText: "box-shadow:none;border-radius:0;",
     },
-    legend: { textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
+    legend: { type: "plain", textStyle: { color: ADLS.slate500, fontSize: 10 }, top: 0, itemWidth: 10, itemHeight: 8 },
     xAxis: { type: "category", data: data.labels, ...axisStyle({ axisLabel: { color: ADLS.slate500, fontSize: 10, rotate: 30 } }) },
     yAxis: [
-      { type: "value", name: "基金数量", nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
-      { type: "value", name: "平均收益率%", nameTextStyle: { color: ADLS.slate400, fontSize: 10 },
+      { type: "value", name: "基金数量", min: 0, max: 450, interval: 50,
+        nameTextStyle: { color: ADLS.slate400, fontSize: 10 }, ...axisStyle() },
+      { type: "value", name: "平均收益率%", min: -10, max: 80, interval: 10,
+        nameTextStyle: { color: ADLS.slate400, fontSize: 10 },
         ...axisStyle({ splitLine: { show: false } }), axisLabel: { formatter: (v) => v + "%" } },
     ],
     series: [

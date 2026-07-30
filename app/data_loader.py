@@ -296,7 +296,8 @@ def post_classify() -> pd.DataFrame:
     """
     df = _sheet("产品事后分类").copy()
     df.columns = ["pub_date", "fund_code", "fund_name", "industries_name", "classify_label", "total_nav"]
-    df["industries_name"] = df["classify_label"].map(_post_classify_type)
+    # 优先用原始 INDUSTRIESNAME；仅空值才用 CLASSIFY_LABEL 按规则回退（规则见 _post_classify_type）
+    df["industries_name"] = df["industries_name"].fillna(df["classify_label"].map(_post_classify_type))
     df["fund_code"] = df["fund_code"].astype(str)
     # left join 产品规模 的 total_nav（按 fund_code + pub_date）
     df["pub_date"] = pd.to_datetime(df["pub_date"])
@@ -320,8 +321,8 @@ def post_classify() -> pd.DataFrame:
             "total_nav": miss["total_nav"].values,
         })
         df = pd.concat([df, miss_df], ignore_index=True)
-    return df
-    df = df.drop(columns=["total_nav_pc", "total_nav_ps"])
+    # 类型名去掉"(事后)"后缀，显示最原始名字
+    df["industries_name"] = df["industries_name"].str.replace("(事后)", "", regex=False).str.strip()
     return df
 
 
